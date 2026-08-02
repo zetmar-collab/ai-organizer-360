@@ -1,0 +1,11 @@
+node_modules/
+out/
+release/
+dist/
+*.log
+.DS_Store
+*.tsbuildinfo
+*.out.txt
+*.err.txt
+check.db
+

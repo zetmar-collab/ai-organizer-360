@@ -1,0 +1,66 @@
+{
+  "name": "ai-organizer-360",
+  "version": "1.0.0",
+  "description": "AI Organizer 360 - lokalny organizer z dwoma silnikami AI (OpenRouter + Ollama)",
+  "main": "./out/main/index.js",
+  "author": "zetmar-collab",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dist": "electron-vite build && electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "docx": "^9.5.0",
+    "mammoth": "^1.9.0",
+    "node-sqlite3-wasm": "^0.8.30",
+    "pdfjs-dist": "^4.10.38"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "electron": "^35.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.0"
+  },
+  "build": {
+    "appId": "com.github.zetmarcollab.aiorganizer360",
+    "productName": "AI Organizer 360",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/node-sqlite3-wasm/**"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "AI-Organizer-360-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "AI-Organizer-360-${version}-portable.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "AI Organizer 360"
+    }
+  }
+}
