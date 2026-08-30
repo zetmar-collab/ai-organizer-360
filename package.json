@@ -10,7 +10,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "dist": "electron-vite build && electron-builder --win --publish never"
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "docx": "^9.5.0",
@@ -29,7 +31,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.0"
+    "vite": "^6.3.0",
+    "vitest": "^3.2.7"
   },
   "build": {
     "appId": "com.github.zetmarcollab.aiorganizer360",
@@ -47,8 +50,18 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "artifactName": "AI-Organizer-360-${version}-${arch}.${ext}"
     },

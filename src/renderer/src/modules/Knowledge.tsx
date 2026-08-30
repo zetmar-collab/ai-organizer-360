@@ -10,12 +10,12 @@ interface Coverage {
   stale: KbDoc[]
 }
 
-export default function Knowledge(): React.JSX.Element {
+export default function Knowledge({ initialQuery }: { initialQuery?: string }): React.JSX.Element {
   const [docs, setDocs] = useState<KbDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery ?? '')
   const [hits, setHits] = useState<KbHit[]>([])
   const [searched, setSearched] = useState(false)
   const [cover, setCover] = useState<Coverage | null>(null)

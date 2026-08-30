@@ -21,9 +21,15 @@ const CONFIG: Record<LibraryKind, Config> = {
   photo: { title: 'Zdjecia', hint: 'JPG, PNG, WEBP, TIFF, RAW', icon: 'photo', indexable: false }
 }
 
-export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Element {
+export default function Library({
+  kind,
+  initialSearch
+}: {
+  kind: LibraryKind
+  initialSearch?: string
+}): React.JSX.Element {
   const cfg = CONFIG[kind]
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch ?? '')
   const [category, setCategory] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -31,6 +37,10 @@ export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Elem
   const reqRef = useRef('')
 
   const debouncedSearch = useDebounced(search)
+
+  useEffect(() => {
+    if (initialSearch) setSearch(initialSearch)
+  }, [initialSearch])
 
   const { items, loading, error: listError, reload } = useList<LibraryFile>(
     'files',

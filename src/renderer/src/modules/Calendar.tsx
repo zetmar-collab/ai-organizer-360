@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { EventItem, Project } from '../../../shared/types'
 import { api, errMsg, fmtDateTime, localDateTimeValue, useList } from '../lib/api'
 import { AiActionPanel, Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from '../lib/ui'
@@ -25,11 +25,17 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export default function Calendar(): React.JSX.Element {
+export default function Calendar({ focusDate }: { focusDate?: string }): React.JSX.Element {
   const [cursor, setCursor] = useState(() => new Date())
   const [selected, setSelected] = useState(() => dayKey(new Date()))
   const [editing, setEditing] = useState<Partial<EventItem> | null>(null)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!focusDate) return
+    setSelected(focusDate)
+    setCursor(new Date(focusDate + 'T12:00'))
+  }, [focusDate])
 
   const { items: events, loading, reload } = useList<EventItem>('events', { orderBy: 'start asc' })
   const { items: projects } = useList<Project>('projects', { orderBy: 'name asc' })

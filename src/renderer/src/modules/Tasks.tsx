@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { Project, Task } from '../../../shared/types'
 import { api, errMsg, fmtDate, useDebounced, useList } from '../lib/api'
 import { Icon } from '../lib/icons'
@@ -6,13 +6,20 @@ import { AiActionPanel, Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from 
 
 const PRIO = ['niski', 'normalny', 'wysoki']
 
-export default function Tasks(): React.JSX.Element {
-  const [filter, setFilter] = useState<'open' | 'done' | 'all'>('open')
-  const [search, setSearch] = useState('')
+export default function Tasks({ initialSearch }: { initialSearch?: string }): React.JSX.Element {
+  const [filter, setFilter] = useState<'open' | 'done' | 'all'>(initialSearch ? 'all' : 'open')
+  const [search, setSearch] = useState(initialSearch ?? '')
   const [quick, setQuick] = useState('')
   const [editing, setEditing] = useState<Partial<Task> | null>(null)
   const [error, setError] = useState('')
   const debouncedSearch = useDebounced(search)
+
+  useEffect(() => {
+    if (initialSearch) {
+      setSearch(initialSearch)
+      setFilter('all')
+    }
+  }, [initialSearch])
 
   const query = {
     ...(filter === 'all' ? {} : { where: { done: filter === 'done' ? 1 : 0 } }),

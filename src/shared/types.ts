@@ -142,6 +142,26 @@ export type AiTaskName =
   | 'reminders'
   | 'generate-document'
 
+export type SearchModule =
+  | 'tasks'
+  | 'notes'
+  | 'calendar'
+  | 'projects'
+  | 'documents'
+  | 'music'
+  | 'ebooks'
+  | 'photos'
+  | 'finance'
+
+export interface SearchHit {
+  module: SearchModule
+  id: ID
+  title: string
+  subtitle: string
+  date?: string
+  term: string
+}
+
 export interface CrudQuery {
   where?: Record<string, string | number | null>
   search?: { columns: string[]; term: string }

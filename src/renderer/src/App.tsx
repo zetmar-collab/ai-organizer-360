@@ -3,6 +3,7 @@ import type { AppSettings, EngineStatus } from '../../shared/types'
 import { api } from './lib/api'
 import { Icon, type IconName } from './lib/icons'
 import { ModuleBoundary, Toasts } from './lib/ui'
+import { CommandPalette, type PaletteChoice } from './lib/palette'
 import Calendar from './modules/Calendar'
 import Tasks from './modules/Tasks'
 import Notes from './modules/Notes'
@@ -63,6 +64,8 @@ export default function App(): React.JSX.Element {
   const [engine, setEngine] = useState<EngineStatus | null>(null)
   const [theme, setTheme] = useState<AppSettings['theme']>('dark')
   const [reloadKey, setReloadKey] = useState(0)
+  const [palette, setPalette] = useState(false)
+  const [focus, setFocus] = useState<PaletteChoice | null>(null)
 
   const refreshEngine = useCallback(() => {
     api.ai
@@ -93,7 +96,10 @@ export default function App(): React.JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       if (!e.ctrlKey || e.altKey || e.shiftKey) return
       const idx = Number(e.key)
-      if (idx >= 1 && idx <= SHORTCUTS.length) {
+      if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault()
+        setPalette(true)
+      } else if (idx >= 1 && idx <= SHORTCUTS.length) {
         e.preventDefault()
         setView(SHORTCUTS[idx - 1].id)
       } else if (e.key === ',') {
@@ -121,34 +127,48 @@ export default function App(): React.JSX.Element {
     return out
   }, [])
 
+  /** Wybor z wyszukiwarki przenosi do modulu i podaje mu, co ma pokazac. */
+  const pick = (choice: PaletteChoice): void => {
+    setPalette(false)
+    setFocus(choice)
+    setView(choice.module === 'knowledge' ? 'knowledge' : (choice.module as ViewId))
+  }
+
+  /** Cel nawigacji dotyczy tylko modulu, do ktorego prowadzil. */
+  const focusFor = (id: ViewId): PaletteChoice | null => {
+    if (!focus) return null
+    const target = focus.module === 'knowledge' ? 'knowledge' : focus.module
+    return target === id ? focus : null
+  }
+
   const current = NAV.find((n) => n.id === view)!
 
   const render = (): React.JSX.Element => {
     switch (view) {
       case 'calendar':
-        return <Calendar />
+        return <Calendar focusDate={focusFor('calendar')?.date} />
       case 'tasks':
-        return <Tasks />
+        return <Tasks initialSearch={focusFor('tasks')?.term} />
       case 'notes':
-        return <Notes />
+        return <Notes focusId={focusFor('notes')?.id} />
       case 'projects':
-        return <Projects />
+        return <Projects focusId={focusFor('projects')?.id} />
       case 'documents':
-        return <Library kind="document" key="document" />
+        return <Library kind="document" key="document" initialSearch={focusFor('documents')?.term} />
       case 'music':
-        return <Library kind="music" key="music" />
+        return <Library kind="music" key="music" initialSearch={focusFor('music')?.term} />
       case 'ebooks':
-        return <Library kind="ebook" key="ebook" />
+        return <Library kind="ebook" key="ebook" initialSearch={focusFor('ebooks')?.term} />
       case 'photos':
-        return <Library kind="photo" key="photo" />
+        return <Library kind="photo" key="photo" initialSearch={focusFor('photos')?.term} />
       case 'finance':
-        return <Finance />
+        return <Finance initialSearch={focusFor('finance')?.term} />
       case 'stats':
         return <Stats />
       case 'chat':
         return <Chat />
       case 'knowledge':
-        return <Knowledge />
+        return <Knowledge initialQuery={focusFor('knowledge')?.term} />
       case 'generator':
         return <Generator />
       case 'settings':
@@ -210,7 +230,11 @@ export default function App(): React.JSX.Element {
       <main className="main">
         <header className="topbar">
           <h1>{current.label}</h1>
-          <span className="grow" />
+          <button className="btn search-trigger" onClick={() => setPalette(true)}>
+            <Icon name="search" />
+            <span className="grow">Szukaj we wszystkich modulach</span>
+            <kbd>Ctrl+K</kbd>
+          </button>
           {engine && !engine.ok && (
             <span className="pill late">Silnik AI niedostepny — funkcje AI zglosza blad</span>
           )}
@@ -230,6 +254,8 @@ export default function App(): React.JSX.Element {
           </ModuleBoundary>
         </div>
       </main>
+
+      {palette && <CommandPalette onClose={() => setPalette(false)} onPick={pick} />}
 
       <Toasts />
     </div>

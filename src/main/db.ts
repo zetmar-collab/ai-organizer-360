@@ -4,6 +4,7 @@ import { join } from 'path'
 import { mkdirSync } from 'fs'
 import type { CrudQuery, TableName } from '../shared/types'
 import { TABLES } from '../shared/types'
+import { buildListQuery, norm, type SqlValue } from './query'
 
 let db: Database
 
@@ -139,7 +140,7 @@ const WRITABLE: Record<TableName, string[]> = {
   chat_messages: ['sessionId', 'role', 'content']
 }
 
-export type SqlValue = string | number | null | Uint8Array
+export type { SqlValue }
 
 /** Kolumny dokladane do istniejacych baz - bez tego stara baza wywala zapytania. */
 const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
@@ -172,15 +173,6 @@ export function closeDb(): void {
   }
 }
 
-/** node-sqlite3-wasm nie przyjmuje boolean/undefined - normalizujemy. */
-function norm(v: unknown): SqlValue {
-  if (v === undefined || v === null) return null
-  if (typeof v === 'boolean') return v ? 1 : 0
-  if (v instanceof Uint8Array) return v
-  if (typeof v === 'number' || typeof v === 'string') return v
-  return String(v)
-}
-
 function assertTable(table: string): TableName {
   if (!(TABLES as readonly string[]).includes(table)) throw new Error(`Nieznana tabela: ${table}`)
   return table as TableName
@@ -198,30 +190,8 @@ function pick(table: TableName, data: Record<string, unknown>): Record<string, S
 export const crud = {
   list(table: string, q: CrudQuery = {}): unknown[] {
     const t = assertTable(table)
-    const clauses: string[] = []
-    const params: SqlValue[] = []
-    if (q.where) {
-      for (const [k, v] of Object.entries(q.where)) {
-        if (!WRITABLE[t].includes(k) && k !== 'id') continue
-        if (v === null) clauses.push(`${k} IS NULL`)
-        else {
-          clauses.push(`${k} = ?`)
-          params.push(norm(v))
-        }
-      }
-    }
-    if (q.search && q.search.term.trim()) {
-      const cols = q.search.columns.filter((c) => WRITABLE[t].includes(c))
-      if (cols.length) {
-        clauses.push(`(${cols.map((c) => `${c} LIKE ?`).join(' OR ')})`)
-        cols.forEach(() => params.push(`%${q.search!.term}%`))
-      }
-    }
-    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
-    const order =
-      q.orderBy && /^[a-zA-Z_]+ (asc|desc)$/i.test(q.orderBy) ? `ORDER BY ${q.orderBy}` : 'ORDER BY id DESC'
-    const limit = q.limit && Number.isInteger(q.limit) ? `LIMIT ${q.limit}` : ''
-    return getDb().all(`SELECT * FROM ${t} ${where} ${order} ${limit}`, params)
+    const { sql, params } = buildListQuery(t, q, WRITABLE)
+    return getDb().all(sql, params)
   },
 
   get(table: string, id: number): unknown {

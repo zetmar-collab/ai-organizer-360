@@ -8,7 +8,8 @@ import type {
   EngineStatus,
   KbDoc,
   KbHit,
-  LibraryKind
+  LibraryKind,
+  SearchHit
 } from '../shared/types'
 
 export interface TokenEvent {
@@ -90,6 +91,11 @@ const api = {
       ipcRenderer.invoke('lib:scan', kind, folder),
     open: (path: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('lib:open', path),
     reveal: (path: string): Promise<{ ok: true }> => ipcRenderer.invoke('lib:reveal', path)
+  },
+
+  search: {
+    global: (term: string): Promise<SearchHit[]> => ipcRenderer.invoke('search:global', term),
+    knowledge: (term: string): Promise<KbHit[]> => ipcRenderer.invoke('search:knowledge', term)
   },
 
   stats: {

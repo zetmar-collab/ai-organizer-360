@@ -6,7 +6,7 @@ import { Icon } from '../lib/icons'
 
 const AUTOSAVE_MS = 800
 
-export default function Notes(): React.JSX.Element {
+export default function Notes({ focusId }: { focusId?: number }): React.JSX.Element {
   const [search, setSearch] = useState('')
   const [selId, setSelId] = useState<number | null>(null)
   const [draft, setDraft] = useState<Partial<Note>>({})
@@ -16,6 +16,10 @@ export default function Notes(): React.JSX.Element {
   const [preview, setPreview] = useState(false)
   const [status, setStatus] = useState<SaveStatus>('idle')
   const debouncedSearch = useDebounced(search)
+
+  useEffect(() => {
+    if (focusId) setSelId(focusId)
+  }, [focusId])
 
   // Refs, zeby autozapis i przelaczanie notatek widzialy zawsze aktualny stan,
   // nie ten zamrozony w domknieciu przy tworzeniu timera.

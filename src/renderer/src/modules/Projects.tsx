@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { Note, Project, Task } from '../../../shared/types'
 import { api, errMsg, fmtDate, useList } from '../lib/api'
 import { Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from '../lib/ui'
@@ -6,7 +6,7 @@ import { Icon } from '../lib/icons'
 
 const STATUS: Record<string, string> = { active: 'aktywny', paused: 'wstrzymany', done: 'zakonczony' }
 
-export default function Projects(): React.JSX.Element {
+export default function Projects({ focusId }: { focusId?: number }): React.JSX.Element {
   const [editing, setEditing] = useState<Partial<Project> | null>(null)
   const [error, setError] = useState('')
 
@@ -27,6 +27,12 @@ export default function Projects(): React.JSX.Element {
     }
     return map
   }, [projects, tasks, notes])
+
+  useEffect(() => {
+    if (!focusId) return
+    const p = projects.find((x) => x.id === focusId)
+    if (p) setEditing(p)
+  }, [focusId, projects])
 
   const save = async (): Promise<void> => {
     if (!editing?.name?.trim()) {

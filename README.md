@@ -36,6 +36,7 @@ Windows SmartScreen pokaze ostrzezenie, bo pliki nie sa podpisane certyfikatem -
 | Baza wiedzy | indeksowanie PDF/DOCX/TXT/MD/CSV/HTML, **wyszukiwanie semantyczne** |
 | Generator | dokumenty, teksty i e-maile, opcjonalnie na bazie wlasnych dokumentow |
 | Eksport | PDF, DOCX, Markdown - z kazdego wyniku AI i z notatek |
+| Wyszukiwanie globalne | **Ctrl+K** - jedno pole przeszukuje zadania, notatki, wydarzenia, projekty, pliki i finanse, a rownolegle semantycznie baze wiedzy; Enter przenosi prosto do znalezionego rekordu |
 
 ## Pierwsze uruchomienie
 
@@ -65,10 +66,16 @@ npm run dev
 ```
 
 ```bash
+npm test
+```
+
+```bash
 npm run dist
 ```
 
 `npm run dist` buduje bundle i pakuje oba pliki `.exe` do `release/`.
+`npm test` uruchamia testy jednostkowe (Vitest, bez Electrona) - pokrywaja chunking tekstu,
+renderowanie Markdown (granica XSS), budowanie zapytan SQL z whitelista kolumn oraz embeddingi leksykalne.
 
 ## Architektura
 
@@ -83,14 +90,18 @@ src/
       openrouter.ts /chat/completions (SSE streaming)
       embeddings.ts embeddingi + awaryjny tryb leksykalny
       tasks.ts     funkcje AI korzystajace z danych z bazy
-    rag.ts         chunking, indeksowanie, wyszukiwanie kosinusowe
+    rag.ts         indeksowanie, wyszukiwanie kosinusowe, raport pokrycia
+    search.ts      wyszukiwanie globalne przez wszystkie moduly
+    query.ts       czysty builder zapytan SELECT (whitelista kolumn)
     extract.ts     ekstrakcja tekstu z PDF (pdfjs), DOCX (mammoth), plikow tekstowych
     library.ts     skanowanie folderow z plikami
     exporter.ts    eksport PDF (printToPDF), DOCX (docx), Markdown
     ipc.ts         wszystkie kanaly IPC
   preload/         kontekstowo izolowany most (contextBridge)
   renderer/        interfejs React
-  shared/          typy i parser Markdown wspoldzielone miedzy procesami
+  shared/          typy, parser Markdown, chunking i wektory - wspoldzielone
+                   miedzy procesami i pokryte testami
+test/            testy jednostkowe (Vitest) + harness RAG do testu recznego
 ```
 
 Bezpieczenstwo: `contextIsolation: true`, `nodeIntegration: false`, CSP w `index.html`, linki zewnetrzne

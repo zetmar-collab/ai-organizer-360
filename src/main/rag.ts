@@ -1,32 +1,12 @@
 import { getDb } from './db'
-import { cosine, embedTexts, fromBlob, toBlob } from './ai/embeddings'
+import { embedTexts } from './ai/embeddings'
+import { cosine, fromBlob, toBlob } from '../shared/vector'
+import { chunkText } from '../shared/chunk'
 import { extractFile } from './extract'
 import { getSettings } from './settings'
 import type { KbDoc, KbHit } from '../shared/types'
 
-const CHUNK = 1200
-const OVERLAP = 200
-
-export function chunkText(text: string): string[] {
-  const clean = text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
-  if (!clean) return []
-  const chunks: string[] = []
-  let i = 0
-  while (i < clean.length) {
-    let end = Math.min(i + CHUNK, clean.length)
-    if (end < clean.length) {
-      // tniemy na granicy akapitu/zdania, zeby nie rozrywac kontekstu
-      const window = clean.slice(i, end)
-      const cut = Math.max(window.lastIndexOf('\n\n'), window.lastIndexOf('. '), window.lastIndexOf('\n'))
-      if (cut > CHUNK * 0.5) end = i + cut + 1
-    }
-    const piece = clean.slice(i, end).trim()
-    if (piece) chunks.push(piece)
-    if (end >= clean.length) break
-    i = Math.max(end - OVERLAP, i + 1)
-  }
-  return chunks
-}
+export { chunkText }
 
 export interface IndexResult {
   docId: number

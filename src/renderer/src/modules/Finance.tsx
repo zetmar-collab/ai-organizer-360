@@ -1,14 +1,18 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { Transaction } from '../../../shared/types'
 import { api, errMsg, fmtDate, fmtMoney, todayISO, useDebounced, useList } from '../lib/api'
 import { Icon } from '../lib/icons'
 import { Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from '../lib/ui'
 
-export default function Finance(): React.JSX.Element {
+export default function Finance({ initialSearch }: { initialSearch?: string }): React.JSX.Element {
   const [editing, setEditing] = useState<Partial<Transaction> | null>(null)
   const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch ?? '')
   const debouncedSearch = useDebounced(search)
+
+  useEffect(() => {
+    if (initialSearch) setSearch(initialSearch)
+  }, [initialSearch])
 
   const { items, loading, reload } = useList<Transaction>(
     'transactions',

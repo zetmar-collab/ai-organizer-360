@@ -7,6 +7,7 @@ import { categorizeFiles, runAiTask, type AiTaskInput } from './ai/tasks'
 import { buildContext, coverage, indexFile, indexText, listDocs, removeDoc, search } from './rag'
 import { openFile, revealFile, scanFolder } from './library'
 import { overview } from './stats'
+import { globalKnowledge, globalSearch } from './search'
 import { exportDocument, openExported, type ExportRequest } from './exporter'
 import type { AppSettings, ChatTurn, EngineId, KbHit, LibraryKind } from '../shared/types'
 
@@ -176,6 +177,10 @@ export function registerIpc(): void {
   handle('lib:scan', (_e, kind: LibraryKind, folder: string) => scanFolder(kind, folder))
   handle('lib:open', (_e, path: string) => openFile(path))
   handle('lib:reveal', (_e, path: string) => revealFile(path))
+
+  /* ---------- Wyszukiwanie globalne ---------- */
+  handle('search:global', (_e, term: string) => globalSearch(term))
+  handle('search:knowledge', (_e, term: string) => globalKnowledge(term))
 
   /* ---------- Statystyki ---------- */
   handle('stats:overview', () => overview())
