@@ -1,6 +1,6 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { basename } from 'path'
-import { crud, dbFile } from './db'
+import { crud, dbFile, dbSize } from './db'
 import { getPublicSettings, getSettings, setSettings } from './settings'
 import { provider } from './ai/provider'
 import { categorizeFiles, runAiTask, type AiTaskInput } from './ai/tasks'
@@ -10,6 +10,7 @@ import { overview } from './stats'
 import { globalKnowledge, globalSearch } from './search'
 import { exportDocument, openExported, type ExportRequest } from './exporter'
 import { savePlaylist, type SavePlaylistRequest } from './playlist'
+import { createBackup, restoreBackup } from './backup'
 import type { AppSettings, ChatTurn, EngineId, KbHit, LibraryKind } from '../shared/types'
 
 const aborts = new Map<string, AbortController>()
@@ -220,10 +221,17 @@ export function registerIpc(): void {
   /* ---------- Aplikacja ---------- */
   handle('app:info', () => ({
     db: dbFile(),
+    dbBytes: dbSize(),
+    version: app.getVersion(),
+    store: Boolean(process.windowsStore),
     platform: process.platform,
     electron: process.versions.electron,
     node: process.versions.node
   }))
+
+  /* ---------- Kopia zapasowa ---------- */
+  handle('backup:create', (event) => createBackup(BrowserWindow.fromWebContents(event.sender) ?? undefined))
+  handle('backup:restore', (event) => restoreBackup(BrowserWindow.fromWebContents(event.sender) ?? undefined))
   handle('app:open-data-dir', () => {
     void shell.showItemInFolder(dbFile())
     return { ok: true }

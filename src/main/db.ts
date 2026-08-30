@@ -1,7 +1,7 @@
 import { Database } from 'node-sqlite3-wasm'
 import { app } from 'electron'
 import { join } from 'path'
-import { mkdirSync } from 'fs'
+import { mkdirSync, statSync } from 'fs'
 import type { CrudQuery, TableName } from '../shared/types'
 import { TABLES } from '../shared/types'
 import { buildListQuery, norm, type SqlValue } from './query'
@@ -159,6 +159,14 @@ export function initDb(): Database {
   db.exec(SCHEMA)
   migrate(db)
   return db
+}
+
+export function dbSize(): number {
+  try {
+    return statSync(dbFile()).size
+  } catch {
+    return 0
+  }
 }
 
 export function getDb(): Database {

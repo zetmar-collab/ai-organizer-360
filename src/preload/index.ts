@@ -128,9 +128,23 @@ const api = {
   },
 
   app: {
-    info: (): Promise<{ db: string; platform: string; electron: string; node: string }> =>
-      ipcRenderer.invoke('app:info'),
+    info: (): Promise<{
+      db: string
+      dbBytes: number
+      version: string
+      store: boolean
+      platform: string
+      electron: string
+      node: string
+    }> => ipcRenderer.invoke('app:info'),
     openDataDir: (): Promise<{ ok: true }> => ipcRenderer.invoke('app:open-data-dir')
+  },
+
+  backup: {
+    create: (): Promise<{ ok: boolean; path?: string; canceled?: boolean; bytes?: number }> =>
+      ipcRenderer.invoke('backup:create'),
+    restore: (): Promise<{ ok: boolean; canceled?: boolean; path?: string; safetyCopy?: string; tables?: number }> =>
+      ipcRenderer.invoke('backup:restore')
   }
 }
 

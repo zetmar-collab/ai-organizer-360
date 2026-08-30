@@ -1,6 +1,6 @@
 {
   "name": "ai-organizer-360",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI Organizer 360 - lokalny organizer z dwoma silnikami AI (OpenRouter + Ollama)",
   "main": "./out/main/index.js",
   "author": "zetmar-collab",
@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dist:store": "electron-vite build && electron-builder --win appx --publish never",
-    "dist:msix-test": "electron-vite build && electron-builder --win appx --publish never -c.appx.artifactName=AI-Organizer-360-${version}-test-signed.appx && node tools/sign-msix.cjs release/AI-Organizer-360-1.0.0-test-signed.appx 5047763DCF5DB77675453898888D521F3FED424D"
+    "dist:msix-test": "electron-vite build && electron-builder --win appx --publish never -c.appx.artifactName=AI-Organizer-360-${version}-test-signed.appx && node tools/sign-msix.cjs release/AI-Organizer-360-1.1.0-test-signed.appx 5047763DCF5DB77675453898888D521F3FED424D"
   },
   "dependencies": {
     "docx": "^9.5.0",

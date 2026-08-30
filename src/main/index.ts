@@ -5,6 +5,15 @@ import { registerIpc } from './ipc'
 
 const isDev = !app.isPackaged
 
+/**
+ * Wersja z Microsoft Store dostaje wlasny katalog danych. Pakiet MSIX dziala
+ * w trybie runFullTrust, wiec bez tego pisalby do tego samego %APPDATA%, co
+ * instalator NSIS - dwie instalacje wchodzilyby sobie w jedna baze.
+ */
+if (process.windowsStore) {
+  app.setPath('userData', join(app.getPath('appData'), 'ai-organizer-360-store'))
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,

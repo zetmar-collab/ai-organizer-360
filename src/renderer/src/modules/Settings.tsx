@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import type { AppSettings, EngineId, EngineStatus } from '../../../shared/types'
-import { api, errMsg } from '../lib/api'
+import { api, errMsg, fmtBytes } from '../lib/api'
 import { Icon } from '../lib/icons'
 import { ErrorBox, Field, toast } from '../lib/ui'
 
@@ -20,7 +20,8 @@ export default function Settings({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<Partial<Record<EngineId, EngineStatus>>>({})
-  const [appInfo, setAppInfo] = useState<{ db: string; electron: string; node: string } | null>(null)
+  const [appInfo, setAppInfo] = useState<Awaited<ReturnType<typeof api.app.info>> | null>(null)
+  const [restoring, setRestoring] = useState(false)
 
   useEffect(() => {
     void api.settings.get().then(setS)
@@ -261,9 +262,14 @@ export default function Settings({
 
       <div className="card stack-md">
         <h3>Dane aplikacji</h3>
+        <p className="muted">
+          Wersja <span className="mono">{appInfo?.version}</span>
+          {appInfo?.store ? ' • wydanie z Microsoft Store (wlasna, odrebna baza)' : ' • wydanie instalowane z pliku'}
+        </p>
         <p className="muted mono">{appInfo?.db}</p>
         <p className="muted">
-          Electron {appInfo?.electron} • Node {appInfo?.node}
+          Rozmiar bazy: <span className="mono">{fmtBytes(appInfo?.dbBytes ?? 0)}</span> • Electron{' '}
+          {appInfo?.electron} • Node {appInfo?.node}
         </p>
         <div className="row stack-md">
           <button className="btn" onClick={() => void api.app.openDataDir()}>
@@ -271,6 +277,55 @@ export default function Settings({
           </button>
         </div>
       </div>
+
+      <div className="card stack-md">
+        <h3>Kopia zapasowa</h3>
+        <p className="muted hint">
+          Kopia to jeden plik z cala zawartoscia aplikacji: kalendarz, zadania, notatki, projekty, biblioteki,
+          finanse, rozmowy, baza wiedzy i ustawienia. Klucz OpenRouter jest w niej zaszyfrowany kluczem tego
+          konta Windows, wiec na innym komputerze trzeba go wpisac ponownie.
+        </p>
+        <div className="row">
+          <button
+            className="btn primary"
+            onClick={async () => {
+              try {
+                const r = await api.backup.create()
+                if (!r.canceled && r.path) toast('Kopia zapisana (' + fmtBytes(r.bytes ?? 0) + '): ' + r.path)
+              } catch (e) {
+                setError(errMsg(e))
+              }
+            }}
+          >
+            <Icon name="save" /> Utworz kopie zapasowa
+          </button>
+          <button
+            className="btn"
+            disabled={restoring}
+            onClick={async () => {
+              setRestoring(true)
+              setError('')
+              try {
+                const r = await api.backup.restore()
+                if (r.canceled) return
+                toast('Odtworzono kopie. Aplikacja uruchomi sie ponownie...')
+              } catch (e) {
+                setError(errMsg(e))
+              } finally {
+                setRestoring(false)
+              }
+            }}
+          >
+            {restoring ? <span className="spinner" /> : <Icon name="download" />} Odtworz z kopii
+          </button>
+        </div>
+        <p className="muted stack-md">
+          Odtwarzanie nadpisuje biezaca baze. Poprzednia wersja zostaje zapisana obok niej z dopiskiem
+          <span className="mono"> .przed-odtworzeniem-</span>, wiec zawsze mozna sie wycofac. Po odtworzeniu
+          aplikacja uruchamia sie ponownie.
+        </p>
+      </div>
+
     </>
   )
 }

@@ -16,8 +16,8 @@ Po zbudowaniu znajduja sie w katalogu `release/`:
 
 | Plik | Opis |
 | --- | --- |
-| `AI-Organizer-360-1.0.0-x64.exe` | instalator (NSIS, wybor katalogu, skrot na pulpicie) |
-| `AI-Organizer-360-1.0.0-portable.exe` | wersja przenosna, uruchamiana bez instalacji |
+| `AI-Organizer-360-1.1.0-x64.exe` | instalator (NSIS, wybor katalogu, skrot na pulpicie) |
+| `AI-Organizer-360-1.1.0-portable.exe` | wersja przenosna, uruchamiana bez instalacji |
 
 Windows SmartScreen pokaze ostrzezenie, bo pliki nie sa podpisane certyfikatem - "Wiecej informacji" -> "Uruchom mimo to".
 
@@ -40,7 +40,7 @@ Package Family Name      MarekZettel-zetmar.AIOrganizer360_411qrz2m02jw4
 Instalacja wersji testowej i jej usuniecie:
 
 ```bash
-Add-AppxPackage -Path release\AI-Organizer-360-1.0.0-test-signed.appx
+Add-AppxPackage -Path release\AI-Organizer-360-1.1.0-test-signed.appx
 ```
 
 ```bash
