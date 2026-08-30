@@ -1,7 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { Note, Project } from '../../../shared/types'
-import { api, errMsg, fmtDateTime, newRequestId, useList } from '../lib/api'
-import { Confirm, Empty, ErrorBox, ExportButtons, Markdown } from '../lib/ui'
+import { api, errMsg, fmtDateTime, newRequestId, useDebounced, useList } from '../lib/api'
+import { Confirm, Empty, ErrorBox, ExportButtons, Markdown, SaveState, Skeleton, toast, type SaveStatus } from '../lib/ui'
+import { Icon } from '../lib/icons'
+
+const AUTOSAVE_MS = 800
 
 export default function Notes(): React.JSX.Element {
   const [search, setSearch] = useState('')
@@ -11,41 +14,113 @@ export default function Notes(): React.JSX.Element {
   const [summary, setSummary] = useState('')
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState(false)
+  const [status, setStatus] = useState<SaveStatus>('idle')
+  const debouncedSearch = useDebounced(search)
 
-  const { items, reload } = useList<Note>(
+  // Refs, zeby autozapis i przelaczanie notatek widzialy zawsze aktualny stan,
+  // nie ten zamrozony w domknieciu przy tworzeniu timera.
+  const dirtyRef = useRef(false)
+  const draftRef = useRef<Partial<Note>>({})
+  const selIdRef = useRef<number | null>(null)
+
+  const { items, loading, reload } = useList<Note>(
     'notes',
-    { search: { columns: ['title', 'body', 'tags'], term: search }, orderBy: 'id desc' },
-    [search]
+    { search: { columns: ['title', 'body', 'tags'], term: debouncedSearch }, orderBy: 'id desc' },
+    [debouncedSearch]
   )
   const { items: projects } = useList<Project>('projects', { orderBy: 'name asc' })
 
   useEffect(() => {
-    const note = items.find((n) => n.id === selId)
-    if (note) setDraft(note)
-  }, [selId, items])
+    draftRef.current = draft
+  }, [draft])
+
+  useEffect(() => {
+    selIdRef.current = selId
+  }, [selId])
+
+  const persist = useCallback(
+    async (id: number, data: Partial<Note>): Promise<void> => {
+      setStatus('saving')
+      try {
+        await api.crud.update('notes', id, {
+          title: data.title ?? '',
+          body: data.body ?? '',
+          tags: data.tags ?? '',
+          projectId: data.projectId ?? null,
+          updatedAt: new Date().toISOString()
+        })
+        dirtyRef.current = false
+        setStatus('saved')
+        setError('')
+        await reload()
+      } catch (e) {
+        setStatus('error')
+        setError(errMsg(e))
+      }
+    },
+    [reload]
+  )
+
+  /** Wczytuje notatke z bazy tylko przy zmianie wyboru - nigdy w trakcie pisania. */
+  useEffect(() => {
+    if (!selId) {
+      setDraft({})
+      dirtyRef.current = false
+      setStatus('idle')
+      return
+    }
+    void api.crud
+      .get<Note>('notes', selId)
+      .then((n) => {
+        setDraft(n)
+        dirtyRef.current = false
+        setStatus('idle')
+      })
+      .catch((e) => setError(errMsg(e)))
+  }, [selId])
+
+  /** Autozapis po AUTOSAVE_MS bez pisania. */
+  useEffect(() => {
+    if (!selId || !dirtyRef.current) return
+    const t = setTimeout(() => void persist(selId, draftRef.current), AUTOSAVE_MS)
+    return () => clearTimeout(t)
+  }, [draft, selId, persist])
+
+  /** Zapisuje zaległe zmiany przy zamykaniu okna albo odmontowaniu modulu. */
+  useEffect(() => {
+    const flush = (): void => {
+      if (selIdRef.current && dirtyRef.current) void persist(selIdRef.current, draftRef.current)
+    }
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      window.removeEventListener('beforeunload', flush)
+      flush()
+    }
+  }, [persist])
+
+  const edit = (patch: Partial<Note>): void => {
+    dirtyRef.current = true
+    setStatus('dirty')
+    setDraft((prev) => ({ ...prev, ...patch }))
+  }
+
+  /** Przed zmiana notatki dopisuje to, co jeszcze nie trafilo do bazy. */
+  const selectNote = async (id: number | null): Promise<void> => {
+    if (selId && dirtyRef.current) await persist(selId, draftRef.current)
+    setSelId(id)
+    setSummary('')
+  }
 
   const create = async (): Promise<void> => {
+    if (selId && dirtyRef.current) await persist(selId, draftRef.current)
     const n = await api.crud.create<Note>('notes', { title: 'Nowa notatka', body: '' })
     await reload()
     setSelId(n.id)
     setSummary('')
   }
 
-  const save = async (): Promise<void> => {
-    if (!selId) return
-    try {
-      await api.crud.update('notes', selId, {
-        title: draft.title ?? '',
-        body: draft.body ?? '',
-        tags: draft.tags ?? '',
-        projectId: draft.projectId ?? null,
-        updatedAt: new Date().toISOString()
-      })
-      setError('')
-      await reload()
-    } catch (e) {
-      setError(errMsg(e))
-    }
+  const saveNow = async (): Promise<void> => {
+    if (selId) await persist(selId, draftRef.current)
   }
 
   const summarize = async (): Promise<void> => {
@@ -81,7 +156,7 @@ export default function Notes(): React.JSX.Element {
         text: `${draft.title ?? ''}\n\n${draft.body ?? ''}`
       })
       setError('')
-      window.alert('Notatka dodana do bazy wiedzy.')
+      toast(`Notatka "${draft.title || 'bez tytulu'}" trafila do bazy wiedzy.`)
     } catch (e) {
       setError(errMsg(e))
     } finally {
@@ -90,27 +165,32 @@ export default function Notes(): React.JSX.Element {
   }
 
   return (
-    <div className="cols" style={{ gridTemplateColumns: '320px minmax(0,1fr)' }}>
+    <div className="cols master-detail">
       <div>
-        <div className="row" style={{ marginBottom: 10 }}>
+        <div className="row stack-sm">
           <input className="grow" placeholder="Szukaj..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          <button className="btn primary" onClick={create}>
-            +
+          <button className="btn primary" onClick={create} aria-label="Nowa notatka">
+            <Icon name="plus" />
           </button>
         </div>
-        {items.length === 0 && <Empty text="Brak notatek." />}
+        {loading ? (
+          <Skeleton rows={4} height={64} />
+        ) : (
+          items.length === 0 && <Empty text="Brak notatek. Utworz pierwsza, zeby zaczac pisac." icon="note" />
+        )}
         {items.map((n) => (
           <div
             key={n.id}
             className={`list-item ${n.id === selId ? 'sel' : ''}`}
-            onClick={() => {
-              setSelId(n.id)
-              setSummary('')
-            }}
+            onClick={() => void selectNote(n.id)}
           >
             <b>{n.title || '(bez tytulu)'}</b>
             <div className="muted">{fmtDateTime(n.updatedAt)}</div>
-            {n.tags && <div className="muted">🏷 {n.tags}</div>}
+            {n.tags && (
+              <div className="muted">
+                <Icon name="tag" /> {n.tags}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -122,21 +202,24 @@ export default function Notes(): React.JSX.Element {
           <>
             <div className="card">
               <input
-                style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}
+                className="title-input"
+                aria-label="Tytul notatki"
                 value={draft.title ?? ''}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                onChange={(e) => edit({ title: e.target.value })}
               />
-              <div className="row" style={{ marginBottom: 8 }}>
+              <div className="row stack-sm">
                 <input
                   className="grow"
+                  aria-label="Tagi notatki"
                   placeholder="tagi, oddzielone przecinkami"
                   value={draft.tags ?? ''}
-                  onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
+                  onChange={(e) => edit({ tags: e.target.value })}
                 />
                 <select
-                  style={{ width: 180 }}
+                  className="w-project"
+                  aria-label="Projekt notatki"
                   value={draft.projectId ?? ''}
-                  onChange={(e) => setDraft({ ...draft, projectId: e.target.value ? Number(e.target.value) : null })}
+                  onChange={(e) => edit({ projectId: e.target.value ? Number(e.target.value) : null })}
                 >
                   <option value="">(bez projektu)</option>
                   {projects.map((p) => (
@@ -148,30 +231,30 @@ export default function Notes(): React.JSX.Element {
               </div>
 
               {preview ? (
-                <div style={{ minHeight: 280, border: '1px solid var(--line)', borderRadius: 8, padding: 12 }}>
+                <div className="note-surface">
                   <Markdown text={draft.body ?? ''} />
                 </div>
               ) : (
                 <textarea
-                  style={{ minHeight: 280 }}
+                  className="note-surface"
+                  aria-label="Tresc notatki"
                   value={draft.body ?? ''}
-                  onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                  onChange={(e) => edit({ body: e.target.value })}
+                  onBlur={() => void saveNow()}
                   placeholder="Tresc notatki (Markdown)..."
                 />
               )}
 
-              <div className="row" style={{ marginTop: 10 }}>
-                <button className="btn primary" onClick={save}>
-                  Zapisz
-                </button>
+              <div className="row stack-md">
+                <SaveState status={status} onSave={() => void saveNow()} />
                 <button className="btn" onClick={() => setPreview(!preview)}>
                   {preview ? 'Edytuj' : 'Podglad'}
                 </button>
                 <button className="btn" onClick={summarize} disabled={busy}>
-                  {busy ? <span className="spinner" /> : '✨'} Podsumuj
+                  {busy ? <span className="spinner" /> : <Icon name="sparkle" />} Podsumuj
                 </button>
                 <button className="btn" onClick={addToKnowledge} disabled={busy}>
-                  🧠 Do bazy wiedzy
+                  <Icon name="knowledge" /> Do bazy wiedzy
                 </button>
                 <ExportButtons title={draft.title || 'notatka'} content={draft.body ?? ''} />
                 <Confirm
@@ -187,10 +270,10 @@ export default function Notes(): React.JSX.Element {
             </div>
 
             {summary && (
-              <div className="card" style={{ marginTop: 14 }}>
+              <div className="card stack-md">
                 <h3>Podsumowanie AI</h3>
-                <Markdown text={summary} />
-                <div className="row" style={{ marginTop: 10 }}>
+                <div className="ai-output"><Markdown text={summary} /></div>
+                <div className="row stack-md">
                   <ExportButtons title={`${draft.title || 'notatka'} - podsumowanie`} content={summary} />
                 </div>
               </div>

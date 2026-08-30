@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatMessage, ChatSession, ChatTurn, KbHit } from '../../../shared/types'
 import { api, errMsg, fmtDateTime, newRequestId, useList } from '../lib/api'
-import { Confirm, Empty, ErrorBox, ExportButtons, Markdown } from '../lib/ui'
+import { Icon } from '../lib/icons'
+import { Confirm, Empty, ErrorBox, ExportButtons, Markdown, Skeleton, toast } from '../lib/ui'
 
 export default function Chat(): React.JSX.Element {
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -15,22 +16,34 @@ export default function Chat(): React.JSX.Element {
   const reqRef = useRef('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const { items: sessions, reload: reloadSessions } = useList<ChatSession>('chat_sessions', { orderBy: 'id desc' })
+  const { items: sessions, loading, reload: reloadSessions } = useList<ChatSession>('chat_sessions', {
+    orderBy: 'id desc'
+  })
 
-  useEffect(() => api.ai.onToken(({ requestId, token }) => {
-    if (requestId === reqRef.current) setStreaming((prev) => prev + token)
-  }), [])
+  useEffect(
+    () =>
+      api.ai.onToken(({ requestId, token }) => {
+        if (requestId === reqRef.current) setStreaming((prev) => prev + token)
+      }),
+    []
+  )
 
-  useEffect(() => {
-    if (!sessionId) {
+  /** Historia zawsze pochodzi z bazy - stan lokalny nie jest zrodlem prawdy. */
+  const loadMessages = useCallback(async (id: number | null): Promise<void> => {
+    if (!id) {
       setMessages([])
       return
     }
-    void api.crud
-      .list<ChatMessage>('chat_messages', { where: { sessionId }, orderBy: 'id asc' })
-      .then(setMessages)
-      .catch((e) => setError(errMsg(e)))
-  }, [sessionId])
+    try {
+      setMessages(await api.crud.list<ChatMessage>('chat_messages', { where: { sessionId: id }, orderBy: 'id asc' }))
+    } catch (e) {
+      setError(errMsg(e))
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadMessages(sessionId)
+  }, [sessionId, loadMessages])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
@@ -40,7 +53,6 @@ export default function Chat(): React.JSX.Element {
     const s = await api.crud.create<ChatSession>('chat_sessions', { title: 'Nowa rozmowa' })
     await reloadSessions()
     setSessionId(s.id)
-    setMessages([])
     setSources([])
   }
 
@@ -60,10 +72,7 @@ export default function Chat(): React.JSX.Element {
       ...messages.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content: text }
     ]
-    setMessages((prev) => [
-      ...prev,
-      { id: -Date.now(), sessionId: sid!, role: 'user', content: text, createdAt: new Date().toISOString() }
-    ])
+
     setInput('')
     setStreaming('')
     setSources([])
@@ -75,67 +84,70 @@ export default function Chat(): React.JSX.Element {
     try {
       const res = await api.ai.chat({ requestId, sessionId: sid, messages: history, useKnowledge })
       setSources(res.sources)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: -Date.now() - 1,
-          sessionId: sid!,
-          role: 'assistant',
-          content: res.text,
-          createdAt: new Date().toISOString()
-        }
-      ])
     } catch (e) {
       setError(errMsg(e))
     } finally {
+      // Pytanie i odpowiedz zapisuje proces glowny - odczytujemy stan faktyczny.
+      await loadMessages(sid)
       setStreaming('')
       setBusy(false)
       reqRef.current = ''
     }
   }
 
+  const stop = (): void => {
+    if (reqRef.current) {
+      api.ai.abort(reqRef.current)
+      toast('Zatrzymano. Fragment odpowiedzi zostal zapisany w rozmowie.')
+    }
+  }
+
+  const removeSession = async (id: number): Promise<void> => {
+    await api.crud.remove('chat_sessions', id)
+    setSessionId((cur) => (cur === id ? null : cur))
+    await reloadSessions()
+  }
+
   const transcript = messages.map((m) => `**${m.role === 'user' ? 'Ja' : 'AI'}:**\n\n${m.content}`).join('\n\n---\n\n')
 
   return (
-    <div className="cols" style={{ gridTemplateColumns: '260px minmax(0,1fr)', height: '100%' }}>
+    <div className="cols chat-layout">
       <div>
-        <button className="btn primary" style={{ width: '100%', marginBottom: 10 }} onClick={newSession}>
-          + Nowa rozmowa
+        <button className="btn primary full" onClick={newSession}>
+          <Icon name="plus" /> Nowa rozmowa
         </button>
-        {sessions.length === 0 && <Empty text="Brak rozmow." />}
-        {sessions.map((s) => (
-          <div
-            key={s.id}
-            className={`list-item ${s.id === sessionId ? 'sel' : ''}`}
-            onClick={() => setSessionId(s.id)}
-          >
-            <div className="row">
-              <b className="grow" style={{ fontSize: 13 }}>
-                {s.title}
-              </b>
-              <Confirm
-                text="Usunac rozmowe?"
-                onYes={() => {
-                  void api.crud.remove('chat_sessions', s.id).then(() => {
-                    if (sessionId === s.id) setSessionId(null)
-                    void reloadSessions()
-                  })
-                }}
-              />
+        {loading ? (
+          <Skeleton rows={4} height={52} />
+        ) : sessions.length === 0 ? (
+          <Empty text="Brak rozmow. Zacznij nowa, zeby zapytac o cokolwiek." icon="chat" />
+        ) : (
+          sessions.map((s) => (
+            <div
+              key={s.id}
+              className={'list-item ' + (s.id === sessionId ? 'sel' : '')}
+              onClick={() => setSessionId(s.id)}
+            >
+              <div className="row">
+                <b className="grow">{s.title}</b>
+                <Confirm text={'Usunac rozmowe "' + s.title + '"?'} onYes={() => void removeSession(s.id)} />
+              </div>
+              <div className="muted">{fmtDateTime(s.createdAt)}</div>
             </div>
-            <div className="muted">{fmtDateTime(s.createdAt)}</div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       <div className="chat-wrap">
         <ErrorBox error={error} />
         <div className="chat-scroll" ref={scrollRef}>
           {messages.length === 0 && !streaming && (
-            <Empty text="Zadaj pytanie. Wlacz 'Baza wiedzy', zeby AI odpowiadalo na podstawie Twoich dokumentow." />
+            <Empty
+              text="Zadaj pytanie. Wlacz 'Baza wiedzy', zeby odpowiedzi powstawaly wylacznie na podstawie Twoich dokumentow."
+              icon="chat"
+            />
           )}
           {messages.map((m) => (
-            <div key={m.id} className={`msg ${m.role}`}>
+            <div key={m.id} className={'msg ' + m.role}>
               {m.role === 'assistant' ? <Markdown text={m.content} /> : m.content}
             </div>
           ))}
@@ -147,34 +159,32 @@ export default function Chat(): React.JSX.Element {
         </div>
 
         {sources.length > 0 && (
-          <div className="card" style={{ marginBottom: 10 }}>
+          <div className="card stack-md">
             <h3>Zrodla z bazy wiedzy</h3>
             {sources.map((s, i) => (
-              <div key={`${s.docId}-${s.ord}`} className="muted" style={{ marginBottom: 4 }}>
-                [{i + 1}] <b>{s.docTitle}</b> (fragment {s.ord + 1}, trafnosc {(s.score * 100).toFixed(0)}%)
+              <div key={s.docId + '-' + s.ord} className="muted">
+                [{i + 1}] <b>{s.docTitle}</b> <span className="mono">fragment {s.ord + 1}</span> — trafnosc{' '}
+                <span className="mono">{(s.score * 100).toFixed(0)}%</span>
               </div>
             ))}
           </div>
         )}
 
-        <div className="card">
-          <div className="row" style={{ marginBottom: 8 }}>
-            <label className="row" style={{ gap: 6, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                style={{ width: 16 }}
-                checked={useKnowledge}
-                onChange={(e) => setUseKnowledge(e.target.checked)}
-              />
-              <span className="muted">🧠 Rozmowa z moimi dokumentami (RAG)</span>
+        <div className="card stack-md">
+          <div className="row stack-sm">
+            <label className="row check">
+              <input type="checkbox" checked={useKnowledge} onChange={(e) => setUseKnowledge(e.target.checked)} />
+              <span className="muted">
+                <Icon name="knowledge" /> Odpowiadaj na podstawie moich dokumentow
+              </span>
             </label>
             <span className="grow" />
             {messages.length > 0 && <ExportButtons title="rozmowa-ai" content={transcript} />}
           </div>
           <div className="row">
             <textarea
-              className="grow"
-              style={{ minHeight: 64 }}
+              className="grow chat-input"
+              aria-label="Tresc wiadomosci"
               placeholder="Napisz wiadomosc... (Ctrl+Enter wysyla)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -183,12 +193,12 @@ export default function Chat(): React.JSX.Element {
               }}
             />
             {busy ? (
-              <button className="btn" onClick={() => api.ai.abort(reqRef.current)}>
-                Stop
+              <button className="btn" onClick={stop}>
+                <Icon name="stop" /> Zatrzymaj
               </button>
             ) : (
-              <button className="btn primary" onClick={send}>
-                Wyslij
+              <button className="btn primary" onClick={send} disabled={!input.trim()}>
+                <Icon name="send" /> Wyslij
               </button>
             )}
           </div>

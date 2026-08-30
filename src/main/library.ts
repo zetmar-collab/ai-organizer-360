@@ -88,16 +88,3 @@ export function revealFile(path: string): { ok: true } {
   shell.showItemInFolder(path)
   return { ok: true }
 }
-
-export function libraryStats(kind: LibraryKind): { count: number; bytes: number; categories: { category: string; n: number }[] } {
-  const db = getDb()
-  const agg = db.get('SELECT COUNT(*) as count, COALESCE(SUM(size),0) as bytes FROM files WHERE kind = ?', [kind]) as {
-    count: number
-    bytes: number
-  }
-  const categories = db.all(
-    "SELECT COALESCE(NULLIF(category,''),'(bez kategorii)') as category, COUNT(*) as n FROM files WHERE kind = ? GROUP BY category ORDER BY n DESC",
-    [kind]
-  ) as { category: string; n: number }[]
-  return { ...agg, categories }
-}

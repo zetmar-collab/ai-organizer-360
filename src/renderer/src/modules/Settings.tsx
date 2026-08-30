@@ -1,18 +1,25 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import type { AppSettings, EngineId, EngineStatus } from '../../../shared/types'
 import { api, errMsg } from '../lib/api'
-import { ErrorBox, Field } from '../lib/ui'
+import { Icon } from '../lib/icons'
+import { ErrorBox, Field, toast } from '../lib/ui'
 
 type Public = AppSettings & { openrouterKeySet: boolean }
 
-export default function Settings({ onEngineChange }: { onEngineChange: () => void }): React.JSX.Element {
+export default function Settings({
+  onEngineChange,
+  theme,
+  onToggleTheme
+}: {
+  onEngineChange: () => void
+  theme: AppSettings['theme']
+  onToggleTheme: () => Promise<void>
+}): React.JSX.Element {
   const [s, setS] = useState<Public | null>(null)
   const [keyInput, setKeyInput] = useState('')
   const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState<Record<string, EngineStatus | undefined>>({})
-  const [models, setModels] = useState<Record<string, string[]>>({})
+  const [status, setStatus] = useState<Partial<Record<EngineId, EngineStatus>>>({})
   const [appInfo, setAppInfo] = useState<{ db: string; electron: string; node: string } | null>(null)
 
   useEffect(() => {
@@ -20,17 +27,35 @@ export default function Settings({ onEngineChange }: { onEngineChange: () => voi
     void api.app.info().then(setAppInfo)
   }, [])
 
-  const patch = async (p: Partial<AppSettings>): Promise<void> => {
+  /** Listy modeli pobieramy od razu - uzytkownik nie powinien ich szukac przyciskiem. */
+  const probe = useCallback(async (engine: EngineId): Promise<void> => {
     try {
-      const next = await api.settings.set(p)
-      setS(next)
-      setInfo('Zapisano.')
-      setTimeout(() => setInfo(''), 2000)
-      onEngineChange()
-    } catch (e) {
-      setError(errMsg(e))
+      const st = await api.ai.status(engine)
+      setStatus((prev) => ({ ...prev, [engine]: st }))
+    } catch {
+      /* brak polaczenia obsluguje sam status */
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void probe('ollama')
+    void probe('openrouter')
+  }, [probe])
+
+  const patch = useCallback(
+    async (p: Partial<AppSettings>, note?: string): Promise<void> => {
+      try {
+        setS(await api.settings.set(p))
+        onEngineChange()
+        if (note) toast(note)
+      } catch (e) {
+        setError(errMsg(e))
+      }
+    },
+    [onEngineChange]
+  )
+
+  if (!s) return <div className="muted">Wczytywanie ustawien...</div>
 
   const saveKey = async (): Promise<void> => {
     const key = keyInput.trim()
@@ -41,8 +66,8 @@ export default function Settings({ onEngineChange }: { onEngineChange: () => voi
       setKeyInput('')
       onEngineChange()
       if (next.openrouterKeySet) {
-        setInfo('Klucz OpenRouter zapisany i zaszyfrowany. Kliknij "Testuj polaczenie".')
-        setTimeout(() => setInfo(''), 6000)
+        toast('Klucz OpenRouter zapisany i zaszyfrowany.')
+        void probe('openrouter')
       } else {
         setError('Zapis klucza nie powiodl sie - sprobuj ponownie.')
       }
@@ -54,99 +79,100 @@ export default function Settings({ onEngineChange }: { onEngineChange: () => voi
   const test = async (engine: EngineId): Promise<void> => {
     setBusy(true)
     setError('')
-    try {
-      const st = await api.ai.status(engine)
-      setStatus((prev) => ({ ...prev, [engine]: st }))
-      if (st.ok) setModels((prev) => ({ ...prev, [engine]: st.models }))
-    } catch (e) {
-      setError(errMsg(e))
-    } finally {
-      setBusy(false)
-    }
+    await probe(engine)
+    setBusy(false)
   }
-
-  if (!s) return <div className="muted">Wczytywanie ustawien...</div>
 
   const StatusLine = ({ engine }: { engine: EngineId }): React.JSX.Element | null => {
     const st = status[engine]
     if (!st) return null
     return (
-      <div className={st.ok ? 'notice' : 'error'} style={{ marginTop: 8 }}>
-        {st.ok ? '✅ ' : '❌ '}
+      <div className={st.ok ? 'notice stack-md' : 'error stack-md'}>
+        {st.ok ? 'Dziala. ' : 'Niedostepny. '}
         {st.detail}
       </div>
     )
   }
 
+  const ModelPicker = ({
+    engine,
+    value,
+    onPick
+  }: {
+    engine: EngineId
+    value: string
+    onPick: (v: string) => void
+  }): React.JSX.Element => {
+    const models = status[engine]?.models ?? []
+    if (models.length) {
+      return (
+        <select value={models.includes(value) ? value : ''} onChange={(e) => onPick(e.target.value)}>
+          {!models.includes(value) && <option value="">{value} (niepobrany)</option>}
+          {models.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      )
+    }
+    return <input value={value} onChange={(e) => onPick(e.target.value)} />
+  }
+
   return (
     <>
       <ErrorBox error={error} />
-      {info && <div className="notice">{info}</div>}
 
-      <div className="card" style={{ marginBottom: 14 }}>
+      <div className="card stack-lg">
         <h3>Aktywny silnik AI</h3>
         <div className="row">
           <button
-            className={`btn ${s.engine === 'ollama' ? 'primary' : ''}`}
-            onClick={() => void patch({ engine: 'ollama' })}
+            className={'btn ' + (s.engine === 'ollama' ? 'primary' : '')}
+            onClick={() => void patch({ engine: 'ollama' }, 'Silnik: Ollama (lokalnie)')}
           >
-            🖥 Ollama (lokalnie)
+            <Icon name="local" /> Ollama — lokalnie
           </button>
           <button
-            className={`btn ${s.engine === 'openrouter' ? 'primary' : ''}`}
-            onClick={() => void patch({ engine: 'openrouter' })}
+            className={'btn ' + (s.engine === 'openrouter' ? 'primary' : '')}
+            onClick={() => void patch({ engine: 'openrouter' }, 'Silnik: OpenRouter (chmura)')}
           >
-            ☁ OpenRouter (chmura)
+            <Icon name="cloud" /> OpenRouter — chmura
           </button>
         </div>
-        <div className="muted" style={{ marginTop: 8 }}>
-          Tryb lokalny: zadne dane nie opuszczaja komputera. Tryb OpenRouter: tresc zapytan i fragmenty dokumentow sa
-          wysylane do zewnetrznego API.
-        </div>
+        <p className="muted stack-md">
+          Kolor akcentu w calej aplikacji zmienia sie razem z silnikiem: cieplo oznacza model lokalny (dane zostaja na
+          tym komputerze), chlod — model w chmurze (tresc zapytan wychodzi na zewnatrz).
+        </p>
       </div>
 
       <div className="cols">
         <div className="card">
-          <h3>Ollama (lokalny model)</h3>
+          <h3>Ollama — model lokalny</h3>
           <Field label="Adres serwera">
-            <input value={s.ollamaUrl} onChange={(e) => setS({ ...s, ollamaUrl: e.target.value })} onBlur={() => void patch({ ollamaUrl: s.ollamaUrl })} />
-          </Field>
-          <Field label="Model rozmowy">
-            {models.ollama?.length ? (
-              <select value={s.ollamaModel} onChange={(e) => void patch({ ollamaModel: e.target.value })}>
-                {models.ollama.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={s.ollamaModel}
-                onChange={(e) => setS({ ...s, ollamaModel: e.target.value })}
-                onBlur={() => void patch({ ollamaModel: s.ollamaModel })}
-              />
-            )}
-          </Field>
-          <Field label="Model embeddingow (baza wiedzy)">
             <input
-              value={s.embedModel}
-              onChange={(e) => setS({ ...s, embedModel: e.target.value })}
-              onBlur={() => void patch({ embedModel: s.embedModel })}
+              value={s.ollamaUrl}
+              onChange={(e) => setS({ ...s, ollamaUrl: e.target.value })}
+              onBlur={() => void patch({ ollamaUrl: s.ollamaUrl })}
             />
           </Field>
+          <Field label="Model rozmowy">
+            <ModelPicker engine="ollama" value={s.ollamaModel} onPick={(v) => void patch({ ollamaModel: v })} />
+          </Field>
+          <Field label="Model embeddingow (baza wiedzy)">
+            <ModelPicker engine="ollama" value={s.embedModel} onPick={(v) => void patch({ embedModel: v })} />
+          </Field>
           <button className="btn" onClick={() => void test('ollama')} disabled={busy}>
-            Testuj polaczenie
+            <Icon name="scan" /> Testuj polaczenie
           </button>
           <StatusLine engine="ollama" />
-          <div className="muted" style={{ marginTop: 8 }}>
-            Przyklad startu: <code>ollama pull llama3.1:8b</code> oraz <code>ollama pull nomic-embed-text</code>
-          </div>
+          <p className="muted stack-md">
+            Start: <code>ollama pull llama3.2:3b</code> oraz <code>ollama pull nomic-embed-text</code>
+          </p>
         </div>
 
         <div className="card">
-          <h3>OpenRouter (chmura)</h3>
-          <Field label={`Klucz API ${s.openrouterKeySet ? '✅ (zapisany, zaszyfrowany)' : '❌ (brak)'}`}>
+          <h3>OpenRouter — chmura</h3>
+          <Field label={'Klucz API ' + (s.openrouterKeySet ? '(zapisany, zaszyfrowany)' : '(brak)')}>
             <div className="row">
               <input
                 className="grow"
@@ -161,44 +187,43 @@ export default function Settings({ onEngineChange }: { onEngineChange: () => voi
               </button>
             </div>
           </Field>
+          {s.openrouterKeySet && (
+            <button
+              className="btn sm"
+              onClick={() => void patch({ openrouterKey: '' }, 'Klucz OpenRouter usuniety.')}
+            >
+              <Icon name="trash" /> Usun zapisany klucz
+            </button>
+          )}
           <Field label="Model">
-            {models.openrouter?.length ? (
-              <select value={s.openrouterModel} onChange={(e) => void patch({ openrouterModel: e.target.value })}>
-                {models.openrouter.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={s.openrouterModel}
-                onChange={(e) => setS({ ...s, openrouterModel: e.target.value })}
-                onBlur={() => void patch({ openrouterModel: s.openrouterModel })}
-              />
-            )}
+            <ModelPicker
+              engine="openrouter"
+              value={s.openrouterModel}
+              onPick={(v) => void patch({ openrouterModel: v })}
+            />
           </Field>
           <button className="btn" onClick={() => void test('openrouter')} disabled={busy}>
-            Testuj polaczenie
+            <Icon name="scan" /> Testuj polaczenie
           </button>
           <StatusLine engine="openrouter" />
-          <div className="muted" style={{ marginTop: 8 }}>
-            Klucz jest szyfrowany mechanizmem Windows DPAPI i przechowywany lokalnie.
-          </div>
+          <p className="muted stack-md">Klucz jest szyfrowany mechanizmem Windows DPAPI i nie opuszcza tego komputera.</p>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 14 }}>
+      <div className="card stack-md">
         <h3>Zachowanie AI</h3>
-        <Field label={`Temperatura: ${s.temperature}`}>
+        <Field label={'Temperatura: ' + s.temperature}>
           <input
             type="range"
             min={0}
             max={1}
             step={0.1}
             value={s.temperature}
-            onChange={(e) => setS({ ...s, temperature: Number(e.target.value) })}
-            onMouseUp={() => void patch({ temperature: s.temperature })}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setS({ ...s, temperature: v })
+              void patch({ temperature: v })
+            }}
           />
         </Field>
         <Field label="Liczba fragmentow z bazy wiedzy (RAG top-K)">
@@ -208,27 +233,41 @@ export default function Settings({ onEngineChange }: { onEngineChange: () => voi
             max={20}
             value={s.ragTopK}
             onChange={(e) => setS({ ...s, ragTopK: Number(e.target.value) })}
-            onBlur={() => void patch({ ragTopK: s.ragTopK })}
+            onBlur={() => {
+              const clamped = Math.min(20, Math.max(1, Math.round(s.ragTopK) || 6))
+              setS({ ...s, ragTopK: clamped })
+              void patch({ ragTopK: clamped })
+            }}
           />
         </Field>
         <Field label="Prompt systemowy">
           <textarea
             value={s.systemPrompt}
             onChange={(e) => setS({ ...s, systemPrompt: e.target.value })}
-            onBlur={() => void patch({ systemPrompt: s.systemPrompt })}
+            onBlur={() => void patch({ systemPrompt: s.systemPrompt }, 'Prompt systemowy zapisany.')}
           />
         </Field>
       </div>
 
-      <div className="card" style={{ marginTop: 14 }}>
-        <h3>Dane aplikacji</h3>
-        <div className="muted">Baza danych: {appInfo?.db}</div>
-        <div className="muted">
-          Electron {appInfo?.electron} • Node {appInfo?.node}
+      <div className="card stack-md">
+        <h3>Wyglad</h3>
+        <div className="row">
+          <button className="btn" onClick={onToggleTheme}>
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+            {theme === 'dark' ? 'Przelacz na motyw jasny' : 'Przelacz na motyw ciemny'}
+          </button>
         </div>
-        <div className="row" style={{ marginTop: 10 }}>
+      </div>
+
+      <div className="card stack-md">
+        <h3>Dane aplikacji</h3>
+        <p className="muted mono">{appInfo?.db}</p>
+        <p className="muted">
+          Electron {appInfo?.electron} • Node {appInfo?.node}
+        </p>
+        <div className="row stack-md">
           <button className="btn" onClick={() => void api.app.openDataDir()}>
-            Pokaz folder z danymi
+            <Icon name="open" /> Pokaz folder z danymi
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import type { AppSettings } from '../shared/types'
 
 const DEFAULTS: AppSettings = {
   engine: 'ollama',
+  theme: 'dark',
   openrouterKey: '',
   openrouterModel: 'openai/gpt-4o-mini',
   ollamaUrl: 'http://localhost:11434',

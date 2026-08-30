@@ -1,25 +1,24 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { LibraryFile, LibraryKind } from '../../../shared/types'
-import { api, errMsg, fmtBytes, useList } from '../lib/api'
-import { Confirm, Empty, ErrorBox } from '../lib/ui'
+import { api, errMsg, fmtBytes, newRequestId, useDebounced, useList } from '../lib/api'
+import { Icon, type IconName } from '../lib/icons'
+import { Confirm, Empty, ErrorBox, Progress, Skeleton, toast } from '../lib/ui'
 
 interface Config {
-  kind: LibraryKind
   title: string
   hint: string
+  icon: IconName
   indexable: boolean
 }
 
+const INDEXABLE_EXT = ['pdf', 'docx', 'txt', 'md', 'csv']
+const INDEX_LIMIT = 50
+
 const CONFIG: Record<LibraryKind, Config> = {
-  document: {
-    kind: 'document',
-    title: 'Dokumenty',
-    hint: 'PDF, DOCX, TXT, MD, CSV, XLSX, PPTX',
-    indexable: true
-  },
-  music: { kind: 'music', title: 'Muzyka', hint: 'MP3, FLAC, WAV, M4A, OGG', indexable: false },
-  ebook: { kind: 'ebook', title: 'E-booki', hint: 'EPUB, MOBI, AZW3, PDF, FB2', indexable: true },
-  photo: { kind: 'photo', title: 'Zdjecia', hint: 'JPG, PNG, WEBP, TIFF, RAW', indexable: false }
+  document: { title: 'Dokumenty', hint: 'PDF, DOCX, TXT, MD, CSV, XLSX, PPTX', icon: 'library', indexable: true },
+  music: { title: 'Muzyka', hint: 'MP3, FLAC, WAV, M4A, OGG', icon: 'music', indexable: false },
+  ebook: { title: 'E-booki', hint: 'EPUB, MOBI, AZW3, PDF, FB2', icon: 'ebook', indexable: true },
+  photo: { title: 'Zdjecia', hint: 'JPG, PNG, WEBP, TIFF, RAW', icon: 'photo', indexable: false }
 }
 
 export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Element {
@@ -27,22 +26,36 @@ export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Elem
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<{ current: number; total: number; file: string } | null>(null)
+  const reqRef = useRef('')
 
-  const { items, reload } = useList<LibraryFile>(
+  const debouncedSearch = useDebounced(search)
+
+  const { items, loading, error: listError, reload } = useList<LibraryFile>(
     'files',
     {
       where: { kind, ...(category ? { category } : {}) },
-      search: { columns: ['name', 'tags', 'category'], term: search },
+      search: { columns: ['name', 'tags', 'category'], term: debouncedSearch },
       orderBy: 'id desc',
       limit: 1000
     },
-    [kind, search, category]
+    [kind, debouncedSearch, category]
   )
 
+  useEffect(
+    () =>
+      api.kb.onProgress((e) => {
+        if (e.requestId && e.requestId !== reqRef.current) return
+        setProgress(e.current >= e.total ? null : { current: e.current, total: e.total, file: e.file })
+      }),
+    []
+  )
+
+  const filtered = Boolean(debouncedSearch.trim() || category)
   const categories = Array.from(new Set(items.map((f) => f.category).filter(Boolean))).sort()
   const totalBytes = items.reduce((s, f) => s + (f.size || 0), 0)
+  const indexable = items.filter((f) => INDEXABLE_EXT.includes(f.ext))
 
   const scan = async (): Promise<void> => {
     const folder = await api.dialog.folder()
@@ -51,7 +64,7 @@ export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Elem
     setError('')
     try {
       const r = await api.lib.scan(kind, folder)
-      setInfo(`Skanowanie "${r.folder}": znaleziono ${r.scanned}, nowych ${r.added}, zaktualizowanych ${r.updated}.`)
+      toast('Przeskanowano ' + r.folder + ': ' + r.added + ' nowych, ' + r.updated + ' zaktualizowanych.')
       await reload()
     } catch (e) {
       setError(errMsg(e))
@@ -63,10 +76,9 @@ export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Elem
   const categorize = async (): Promise<void> => {
     setBusy(true)
     setError('')
-    setInfo('')
     try {
       const r = await api.ai.categorize(kind)
-      setInfo(r.updated ? `AI przypisalo kategorie do ${r.updated} plikow.` : 'Wszystkie pliki maja juz kategorie.')
+      toast(r.updated ? 'AI przypisalo kategorie do ' + r.updated + ' plikow.' : 'Wszystkie pliki maja juz kategorie.')
       await reload()
     } catch (e) {
       setError(errMsg(e))
@@ -75,53 +87,84 @@ export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Elem
     }
   }
 
-  const indexSelected = async (): Promise<void> => {
-    const paths = items.filter((f) => ['pdf', 'docx', 'txt', 'md', 'csv'].includes(f.ext)).map((f) => f.path)
+  /** Indeksuje dokladnie to, co widac na liscie - zakres jest wypisany na przycisku. */
+  const indexVisible = async (): Promise<void> => {
+    const paths = indexable.slice(0, INDEX_LIMIT).map((f) => f.path)
     if (!paths.length) {
-      setError('Brak plikow w formacie mozliwym do zaindeksowania (PDF, DOCX, TXT, MD, CSV).')
+      setError('Na liscie nie ma plikow w formacie mozliwym do zaindeksowania (' + INDEXABLE_EXT.join(', ') + ').')
       return
     }
     setBusy(true)
     setError('')
+    const requestId = newRequestId()
+    reqRef.current = requestId
+    setProgress({ current: 0, total: paths.length, file: '' })
     try {
-      const res = await api.kb.indexFiles(paths.slice(0, 50))
+      const res = await api.kb.indexFiles({ paths, requestId })
       const ok = res.filter((r) => r.ok).length
-      setInfo(`Zaindeksowano ${ok}/${res.length} plikow do bazy wiedzy.`)
+      toast('Zaindeksowano ' + ok + ' z ' + res.length + ' plikow do bazy wiedzy.')
       const failed = res.filter((r) => !r.ok)
-      if (failed.length) setError(failed.map((f) => `${f.path}: ${f.message}`).join('\n'))
+      if (failed.length) setError(failed.map((f) => f.path + ': ' + f.message).join('\n'))
     } catch (e) {
       setError(errMsg(e))
     } finally {
+      setProgress(null)
       setBusy(false)
+      reqRef.current = ''
     }
   }
 
   return (
     <>
-      <ErrorBox error={error} />
-      {info && <div className="notice">{info}</div>}
+      <ErrorBox error={error || listError} />
 
-      <div className="card" style={{ marginBottom: 14 }}>
+      <div className="card stack-lg">
         <div className="row">
           <button className="btn primary" onClick={scan} disabled={busy}>
-            📁 Skanuj folder
+            <Icon name="folder" /> Skanuj folder
           </button>
           <button className="btn" onClick={categorize} disabled={busy || !items.length}>
-            {busy ? <span className="spinner" /> : '✨'} Kategoryzuj AI
+            {busy && !progress ? <span className="spinner" /> : <Icon name="sparkle" />} Kategoryzuj AI
           </button>
           {cfg.indexable && (
-            <button className="btn" onClick={indexSelected} disabled={busy || !items.length}>
-              🧠 Indeksuj do bazy wiedzy
+            <button
+              className="btn"
+              onClick={indexVisible}
+              disabled={busy || !indexable.length}
+              title={'Do bazy wiedzy trafia pliki widoczne na liscie, maksymalnie ' + INDEX_LIMIT}
+            >
+              <Icon name="knowledge" /> Indeksuj {Math.min(indexable.length, INDEX_LIMIT)} plikow
             </button>
           )}
           <span className="grow" />
           <span className="muted">
-            {items.length} plikow • {fmtBytes(totalBytes)}
+            {filtered ? 'w filtrze: ' : ''}
+            <span className="mono">{items.length}</span> plikow, <span className="mono">{fmtBytes(totalBytes)}</span>
           </span>
         </div>
-        <div className="row" style={{ marginTop: 10 }}>
-          <input className="grow" placeholder="Szukaj..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select style={{ width: 200 }} value={category} onChange={(e) => setCategory(e.target.value)}>
+
+        {progress && (
+          <Progress
+            value={progress.current}
+            max={progress.total}
+            label={progress.file ? 'Indeksowanie: ' + progress.file : 'Przygotowanie...'}
+          />
+        )}
+
+        <div className="row stack-md">
+          <input
+            className="grow"
+            aria-label="Szukaj w bibliotece"
+            placeholder="Szukaj po nazwie, kategorii, tagach..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select
+            className="w-project"
+            aria-label="Filtr kategorii"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
             <option value="">Wszystkie kategorie</option>
             {categories.map((c) => (
               <option key={c} value={c}>
@@ -130,58 +173,72 @@ export default function Library({ kind }: { kind: LibraryKind }): React.JSX.Elem
             ))}
           </select>
         </div>
-        <div className="muted" style={{ marginTop: 6 }}>
-          Obslugiwane formaty: {cfg.hint}
-        </div>
+        <p className="muted hint stack-md">Obslugiwane formaty: {cfg.hint}</p>
       </div>
 
-      {items.length === 0 ? (
-        <Empty text={`Brak plikow. Kliknij "Skanuj folder" i wskaz katalog z plikami (${cfg.hint}).`} />
+      {loading ? (
+        <Skeleton rows={5} height={44} />
+      ) : items.length === 0 ? (
+        <Empty
+          text={
+            filtered
+              ? 'Nic nie pasuje do filtra.'
+              : 'Biblioteka jest pusta. Wskaz folder z plikami (' + cfg.hint + '), a aplikacja zbuduje indeks.'
+          }
+          icon={cfg.icon}
+          action={
+            filtered ? undefined : (
+              <button className="btn primary" onClick={scan}>
+                <Icon name="folder" /> Skanuj folder
+              </button>
+            )
+          }
+        />
       ) : (
-        <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Nazwa</th>
-                <th style={{ width: 130 }}>Kategoria</th>
-                <th style={{ width: 70 }}>Typ</th>
-                <th style={{ width: 90 }}>Rozmiar</th>
-                <th style={{ width: 150 }}>Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.slice(0, 500).map((f) => (
-                <tr key={f.id}>
-                  <td>
-                    <div>{f.name}</div>
-                    <div className="muted" style={{ fontSize: 11 }}>
-                      {f.path}
-                    </div>
-                  </td>
-                  <td>{f.category ? <span className="pill">{f.category}</span> : <span className="muted">-</span>}</td>
-                  <td className="muted">{f.ext}</td>
-                  <td className="muted">{fmtBytes(f.size)}</td>
-                  <td>
-                    <div className="row">
-                      <button className="btn sm" onClick={() => void api.lib.open(f.path)}>
-                        Otworz
-                      </button>
-                      <button className="btn sm" onClick={() => void api.lib.reveal(f.path)}>
-                        Folder
-                      </button>
-                      <Confirm
-                        text={`Usunac "${f.name}" z biblioteki? Plik na dysku pozostanie nietkniety.`}
-                        onYes={() => {
-                          void api.crud.remove('files', f.id).then(reload)
-                        }}
-                      />
-                    </div>
-                  </td>
+        <div className="card no-pad">
+          <div className="scroll-x">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nazwa</th>
+                  <th className="col-mid">Kategoria</th>
+                  <th className="col-narrow">Typ</th>
+                  <th className="col-narrow">Rozmiar</th>
+                  <th className="col-mid" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {items.length > 500 && <div className="muted" style={{ padding: 10 }}>Pokazano pierwsze 500 pozycji.</div>}
+              </thead>
+              <tbody>
+                {items.slice(0, 500).map((f) => (
+                  <tr key={f.id}>
+                    <td>
+                      <div>{f.name}</div>
+                      <div className="muted mono">{f.path}</div>
+                    </td>
+                    <td>{f.category ? <span className="pill">{f.category}</span> : <span className="muted">—</span>}</td>
+                    <td className="muted mono">{f.ext}</td>
+                    <td className="muted mono">{fmtBytes(f.size)}</td>
+                    <td>
+                      <div className="row">
+                        <button className="btn sm" onClick={() => void api.lib.open(f.path)}>
+                          <Icon name="open" /> Otworz
+                        </button>
+                        <button className="btn sm" onClick={() => void api.lib.reveal(f.path)}>
+                          <Icon name="folder" />
+                        </button>
+                        <Confirm
+                          text={'Usunac "' + f.name + '" z biblioteki? Plik na dysku zostanie nietkniety.'}
+                          onYes={() => void api.crud.remove('files', f.id).then(reload)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {items.length > 500 && (
+            <p className="muted pad">Pokazano pierwsze 500 z {items.length} pozycji — zaweź filtr, zeby zobaczyc reszte.</p>
+          )}
         </div>
       )}
     </>

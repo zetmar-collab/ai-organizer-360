@@ -30,19 +30,24 @@ export class OllamaProvider implements LLMProvider {
     if (!res.ok) throw await httpError(res, 'Ollama /api/chat')
 
     let full = ''
-    await readLines(res, (line) => {
-      try {
-        const json = JSON.parse(line) as { message?: { content?: string }; error?: string }
-        if (json.error) throw new Error(json.error)
-        const token = json.message?.content
-        if (token) {
-          full += token
-          opts.onToken?.(token)
+    try {
+      await readLines(res, (line) => {
+        try {
+          const json = JSON.parse(line) as { message?: { content?: string }; error?: string }
+          if (json.error) throw new Error(json.error)
+          const token = json.message?.content
+          if (token) {
+            full += token
+            opts.onToken?.(token)
+          }
+        } catch {
+          /* pomijamy niekompletne linie */
         }
-      } catch {
-        /* pomijamy niekompletne linie */
-      }
-    })
+      })
+    } catch (e) {
+      // Zatrzymanie przez uzytkownika nie jest bledem - oddajemy to, co juz doszlo.
+      if ((e as Error).name !== 'AbortError') throw e
+    }
     return full
   }
 

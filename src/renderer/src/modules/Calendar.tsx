@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import type { EventItem, Project } from '../../../shared/types'
 import { api, errMsg, fmtDateTime, localDateTimeValue, useList } from '../lib/api'
-import { AiActionPanel, Confirm, Empty, ErrorBox, Field, Modal } from '../lib/ui'
+import { AiActionPanel, Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from '../lib/ui'
+import { Icon } from '../lib/icons'
 
 const DAYS = ['Pn', 'Wt', 'Sr', 'Cz', 'Pt', 'So', 'Nd']
 const MONTHS = [
@@ -30,7 +31,7 @@ export default function Calendar(): React.JSX.Element {
   const [editing, setEditing] = useState<Partial<EventItem> | null>(null)
   const [error, setError] = useState('')
 
-  const { items: events, reload } = useList<EventItem>('events', { orderBy: 'start asc' })
+  const { items: events, loading, reload } = useList<EventItem>('events', { orderBy: 'start asc' })
   const { items: projects } = useList<Project>('projects', { orderBy: 'name asc' })
 
   const byDay = useMemo(() => {
@@ -61,11 +62,17 @@ export default function Calendar(): React.JSX.Element {
       setError('Tytul jest wymagany.')
       return
     }
+    const startAt = new Date(editing.start ?? Date.now())
+    const endAt = new Date(editing.end ?? editing.start ?? Date.now())
+    if (endAt < startAt) {
+      setError('Koniec wydarzenia nie moze wypadac przed jego poczatkiem.')
+      return
+    }
     try {
       const data = {
         title: editing.title,
-        start: new Date(editing.start ?? Date.now()).toISOString(),
-        end: new Date(editing.end ?? editing.start ?? Date.now()).toISOString(),
+        start: startAt.toISOString(),
+        end: endAt.toISOString(),
         allDay: editing.allDay ?? 0,
         location: editing.location ?? '',
         notes: editing.notes ?? '',
@@ -94,24 +101,32 @@ export default function Calendar(): React.JSX.Element {
       <ErrorBox error={error} />
       <div className="cols">
         <div className="card">
-          <div className="row" style={{ marginBottom: 10 }}>
-            <button className="btn sm" onClick={() => setCursor(new Date(cursor.getFullYear(), monthIdx - 1, 1))}>
-              ‹
+          <div className="row stack-sm">
+            <button
+              className="btn sm"
+              aria-label="Poprzedni miesiac"
+              onClick={() => setCursor(new Date(cursor.getFullYear(), monthIdx - 1, 1))}
+            >
+              &lsaquo;
             </button>
-            <b className="grow" style={{ textAlign: 'center' }}>
+            <b className="grow center">
               {MONTHS[monthIdx]} {cursor.getFullYear()}
             </b>
-            <button className="btn sm" onClick={() => setCursor(new Date(cursor.getFullYear(), monthIdx + 1, 1))}>
-              ›
+            <button
+              className="btn sm"
+              aria-label="Nastepny miesiac"
+              onClick={() => setCursor(new Date(cursor.getFullYear(), monthIdx + 1, 1))}
+            >
+              &rsaquo;
             </button>
             <button className="btn sm" onClick={() => setCursor(new Date())}>
               Dzis
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+          <div className="cal-grid">
             {DAYS.map((d) => (
-              <div key={d} className="muted" style={{ textAlign: 'center', fontSize: 11 }}>
+              <div key={d} className="cal-head">
                 {d}
               </div>
             ))}
@@ -120,24 +135,17 @@ export default function Calendar(): React.JSX.Element {
               const count = (byDay.get(key) ?? []).length
               const other = d.getMonth() !== monthIdx
               const isToday = key === dayKey(new Date())
+              const cls = ['cal-day', other ? 'other' : '', isToday ? 'today' : '', key === selected ? 'sel' : '']
               return (
                 <button
                   key={key}
+                  className={cls.join(' ')}
+                  aria-current={isToday ? 'date' : undefined}
+                  aria-label={key + (count ? ', wydarzenia: ' + count : ', brak wydarzen')}
                   onClick={() => setSelected(key)}
-                  style={{
-                    background: key === selected ? 'var(--bg-3)' : 'transparent',
-                    border: `1px solid ${isToday ? 'var(--accent)' : 'transparent'}`,
-                    borderRadius: 8,
-                    padding: '6px 2px',
-                    cursor: 'pointer',
-                    opacity: other ? 0.35 : 1,
-                    minHeight: 46
-                  }}
                 >
                   <div>{d.getDate()}</div>
-                  {count > 0 && (
-                    <div style={{ fontSize: 10, color: 'var(--accent)' }}>{'•'.repeat(Math.min(count, 3))}</div>
-                  )}
+                  {count > 0 && <span className="cal-count">{count}</span>}
                 </button>
               )
             })}
@@ -145,11 +153,9 @@ export default function Calendar(): React.JSX.Element {
         </div>
 
         <div>
-          <div className="card" style={{ marginBottom: 14 }}>
-            <div className="row" style={{ marginBottom: 8 }}>
-              <h3 className="grow" style={{ margin: 0 }}>
-                {selected}
-              </h3>
+          <div className="card stack-lg">
+            <div className="row stack-sm">
+              <h3 className="grow flush">{selected}</h3>
               <button
                 className="btn primary sm"
                 onClick={() =>
@@ -164,10 +170,11 @@ export default function Calendar(): React.JSX.Element {
                   })
                 }
               >
-                + Wydarzenie
+                <Icon name="plus" /> Wydarzenie
               </button>
             </div>
-            {dayEvents.length === 0 && <Empty text="Brak wydarzen tego dnia." />}
+            {loading && <Skeleton rows={2} height={56} />}
+            {!loading && dayEvents.length === 0 && <Empty text="Brak wydarzen tego dnia." icon="calendar" />}
             {dayEvents.map((e) => (
               <div key={e.id} className="list-item" onClick={() => setEditing({ ...e, start: localDateTimeValue(e.start), end: localDateTimeValue(e.end) })}>
                 <div className="row">

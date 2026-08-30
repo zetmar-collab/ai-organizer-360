@@ -46,6 +46,17 @@ export function useList<T>(
   return { items, loading, error, reload, setItems }
 }
 
+/** Opoznia zmiane wartosci - kazde nacisniecie klawisza w polu szukania
+ *  odpalalo synchroniczne zapytanie, ktore blokuje proces glowny. */
+export function useDebounced<T>(value: T, delay = 250): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '-'
   const d = new Date(iso)

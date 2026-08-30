@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS kb_docs (
   title TEXT NOT NULL,
   source TEXT NOT NULL,
   kind TEXT DEFAULT '',
+  mode TEXT DEFAULT '',
   chars INTEGER DEFAULT 0,
   chunks INTEGER DEFAULT 0,
   createdAt TEXT DEFAULT (datetime('now'))
@@ -140,9 +141,22 @@ const WRITABLE: Record<TableName, string[]> = {
 
 export type SqlValue = string | number | null | Uint8Array
 
+/** Kolumny dokladane do istniejacych baz - bez tego stara baza wywala zapytania. */
+const MIGRATIONS: { table: string; column: string; ddl: string }[] = [
+  { table: 'kb_docs', column: 'mode', ddl: "ALTER TABLE kb_docs ADD COLUMN mode TEXT DEFAULT ''" }
+]
+
+function migrate(database: Database): void {
+  for (const m of MIGRATIONS) {
+    const cols = database.all(`PRAGMA table_info(${m.table})`) as { name: string }[]
+    if (!cols.some((c) => c.name === m.column)) database.run(m.ddl)
+  }
+}
+
 export function initDb(): Database {
   db = new Database(dbFile())
   db.exec(SCHEMA)
+  migrate(db)
   return db
 }
 

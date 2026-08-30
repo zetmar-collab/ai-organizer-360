@@ -16,6 +16,13 @@ export interface TokenEvent {
   token: string
 }
 
+export interface ProgressEvent {
+  requestId?: string
+  current: number
+  total: number
+  file: string
+}
+
 const api = {
   crud: {
     list: <T>(table: string, q?: CrudQuery): Promise<T[]> => ipcRenderer.invoke('crud:list', table, q ?? {}),
@@ -66,15 +73,21 @@ const api = {
     search: (query: string, topK?: number): Promise<KbHit[]> => ipcRenderer.invoke('kb:search', query, topK),
     indexText: (p: { title: string; source: string; kind: string; text: string }): Promise<unknown> =>
       ipcRenderer.invoke('kb:index-text', p),
-    indexFiles: (paths: string[]): Promise<{ path: string; ok: boolean; message: string }[]> =>
-      ipcRenderer.invoke('kb:index-files', paths)
+    indexFiles: (payload: {
+      paths: string[]
+      requestId?: string
+    }): Promise<{ path: string; ok: boolean; message: string }[]> => ipcRenderer.invoke('kb:index-files', payload),
+    coverage: (): Promise<{ total: number; searchable: number; stale: KbDoc[] }> => ipcRenderer.invoke('kb:coverage'),
+    onProgress: (cb: (e: ProgressEvent) => void): (() => void) => {
+      const listener = (_: unknown, data: ProgressEvent): void => cb(data)
+      ipcRenderer.on('kb:progress', listener)
+      return () => ipcRenderer.removeListener('kb:progress', listener)
+    }
   },
 
   lib: {
     scan: (kind: LibraryKind, folder: string): Promise<{ scanned: number; added: number; updated: number; folder: string }> =>
       ipcRenderer.invoke('lib:scan', kind, folder),
-    stats: (kind: LibraryKind): Promise<{ count: number; bytes: number; categories: { category: string; n: number }[] }> =>
-      ipcRenderer.invoke('lib:stats', kind),
     open: (path: string): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('lib:open', path),
     reveal: (path: string): Promise<{ ok: true }> => ipcRenderer.invoke('lib:reveal', path)
   },

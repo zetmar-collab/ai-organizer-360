@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api, errMsg, fmtBytes, fmtMoney } from '../lib/api'
-import { AiActionPanel, Empty, ErrorBox } from '../lib/ui'
+import { AiActionPanel, ErrorBox, Skeleton } from '../lib/ui'
 
 interface Overview {
   counts: Record<string, number>
@@ -44,13 +44,13 @@ export default function Stats(): React.JSX.Element {
   }, [])
 
   if (error) return <ErrorBox error={error} />
-  if (!data) return <Empty text="Wczytywanie statystyk..." />
+  if (!data) return <Skeleton rows={4} height={92} />
 
   const doneRate = data.tasks.done + data.tasks.open ? Math.round((data.tasks.done / (data.tasks.done + data.tasks.open)) * 100) : 0
 
   return (
     <>
-      <div className="cols-3" style={{ marginBottom: 14 }}>
+      <div className="cols-3 stack-lg">
         <div className="kpi">
           <span>Zadania ukonczone (30 dni)</span>
           <b>{data.tasks.doneLast30}</b>
@@ -59,19 +59,17 @@ export default function Stats(): React.JSX.Element {
           <span>Otwarte zadania</span>
           <b>{data.tasks.open}</b>
         </div>
-        <div className="kpi">
+        <div className={'kpi ' + (data.tasks.overdue ? 'neg' : 'pos')}>
           <span>Po terminie</span>
-          <b style={{ color: data.tasks.overdue ? 'var(--err)' : 'var(--ok)' }}>{data.tasks.overdue}</b>
+          <b>{data.tasks.overdue}</b>
         </div>
         <div className="kpi">
           <span>Skutecznosc</span>
           <b>{doneRate}%</b>
         </div>
-        <div className="kpi">
+        <div className={'kpi ' + (data.finance.balance >= 0 ? 'pos' : 'neg')}>
           <span>Bilans finansowy</span>
-          <b style={{ color: data.finance.balance >= 0 ? 'var(--ok)' : 'var(--err)' }}>
-            {fmtMoney(data.finance.balance)}
-          </b>
+          <b>{fmtMoney(data.finance.balance)}</b>
         </div>
         <div className="kpi">
           <span>Baza wiedzy</span>
@@ -80,7 +78,7 @@ export default function Stats(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="cols" style={{ marginBottom: 14 }}>
+      <div className="cols stack-lg">
         <div className="card">
           <h3>Ukonczone zadania (30 dni)</h3>
           <Spark data={data.tasksPerDay} />
@@ -91,7 +89,7 @@ export default function Stats(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="cols" style={{ marginBottom: 14 }}>
+      <div className="cols stack-lg">
         <div className="card">
           <h3>Projekty</h3>
           {data.topProjects.length === 0 && <span className="muted">Brak danych.</span>}
@@ -102,13 +100,13 @@ export default function Stats(): React.JSX.Element {
                 const pct = total ? Math.round((p.done / total) * 100) : 0
                 return (
                   <tr key={p.project}>
-                    <td style={{ width: '45%' }}>{p.project}</td>
+                    <td className="col-half">{p.project}</td>
                     <td>
                       <div className="bar">
                         <i style={{ width: `${pct}%` }} />
                       </div>
                     </td>
-                    <td className="muted" style={{ width: 90 }}>
+                    <td className="muted mono col-narrow">
                       {p.done}/{total}
                     </td>
                   </tr>

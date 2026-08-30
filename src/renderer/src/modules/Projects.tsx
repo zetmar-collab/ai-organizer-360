@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import type { Note, Project, Task } from '../../../shared/types'
 import { api, errMsg, fmtDate, useList } from '../lib/api'
-import { Confirm, Empty, ErrorBox, Field, Modal } from '../lib/ui'
+import { Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from '../lib/ui'
+import { Icon } from '../lib/icons'
 
 const STATUS: Record<string, string> = { active: 'aktywny', paused: 'wstrzymany', done: 'zakonczony' }
 
@@ -9,7 +10,7 @@ export default function Projects(): React.JSX.Element {
   const [editing, setEditing] = useState<Partial<Project> | null>(null)
   const [error, setError] = useState('')
 
-  const { items: projects, reload } = useList<Project>('projects', { orderBy: 'id desc' })
+  const { items: projects, loading, reload } = useList<Project>('projects', { orderBy: 'id desc' })
   const { items: tasks } = useList<Task>('tasks', { orderBy: 'id desc' })
   const { items: notes } = useList<Note>('notes', { orderBy: 'id desc' })
 
@@ -52,13 +53,16 @@ export default function Projects(): React.JSX.Element {
   return (
     <>
       <ErrorBox error={error} />
-      <div className="row" style={{ marginBottom: 14 }}>
-        <button className="btn primary" onClick={() => setEditing({ name: '', status: 'active', color: '#6ea8fe' })}>
-          + Nowy projekt
+      <div className="row stack-lg">
+        <button className="btn primary" onClick={() => setEditing({ name: '', status: 'active', color: '#d99a4e' })}>
+          <Icon name="plus" /> Nowy projekt
         </button>
       </div>
 
-      {projects.length === 0 && <Empty text="Brak projektow. Utworz pierwszy, zeby grupowac zadania i notatki." />}
+      {loading && <Skeleton rows={3} height={120} />}
+      {!loading && projects.length === 0 && (
+        <Empty text="Brak projektow. Utworz pierwszy, zeby grupowac zadania i notatki." icon="folder" />
+      )}
 
       <div className="cols-3">
         {projects.map((p) => {
@@ -73,18 +77,17 @@ export default function Projects(): React.JSX.Element {
                 </b>
                 <span className="pill">{STATUS[p.status] ?? p.status}</span>
               </div>
-              {p.description && (
-                <div className="muted" style={{ margin: '6px 0' }}>
-                  {p.description}
-                </div>
-              )}
-              <div className="bar" style={{ margin: '10px 0 6px' }}>
+              {p.description && <div className="muted stack-sm">{p.description}</div>}
+              <div className="bar stack-sm">
                 <i style={{ width: `${pct}%` }} />
               </div>
               <div className="muted">
-                {s.done}/{total} zadan • {s.notes} notatek • od {fmtDate(p.createdAt)}
+                <span className="mono">
+                  {s.done}/{total}
+                </span>{' '}
+                zadan • <span className="mono">{s.notes}</span> notatek • od {fmtDate(p.createdAt)}
               </div>
-              <div className="row" style={{ marginTop: 10 }}>
+              <div className="row stack-md">
                 <button className="btn sm" onClick={() => setEditing(p)}>
                   Edytuj
                 </button>
@@ -141,7 +144,7 @@ export default function Projects(): React.JSX.Element {
               <Field label="Kolor">
                 <input
                   type="color"
-                  value={editing.color ?? '#6ea8fe'}
+                  value={editing.color ?? '#d99a4e'}
                   onChange={(e) => setEditing({ ...editing, color: e.target.value })}
                 />
               </Field>

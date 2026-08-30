@@ -88,6 +88,7 @@ export interface KbDoc {
   title: string
   source: string
   kind: string
+  mode: string
   chars: number
   chunks: number
   createdAt: string
@@ -108,6 +109,7 @@ export type EngineId = 'ollama' | 'openrouter'
 
 export interface AppSettings {
   engine: EngineId
+  theme: 'dark' | 'light'
   openrouterKey: string
   openrouterModel: string
   ollamaUrl: string

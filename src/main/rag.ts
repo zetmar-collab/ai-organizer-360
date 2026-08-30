@@ -46,17 +46,21 @@ export async function indexText(title: string, source: string, kind: string, tex
   if (existing) removeDoc(existing.id)
 
   const { vectors, mode } = await embedTexts(chunks)
-  const info = db.run('INSERT INTO kb_docs (title, source, kind, chars, chunks) VALUES (?,?,?,?,?)', [
-    title,
-    source,
-    kind,
-    text.length,
-    chunks.length
-  ])
-  const docId = Number(info.lastInsertRowid)
 
+  // Dokument i jego fragmenty musza powstac razem - inaczej po bledzie zostaje
+  // wpis obiecujacy N fragmentow, ktorych nie ma, i wyszukiwanie nic nie zwraca.
   db.run('BEGIN')
+  let docId: number
   try {
+    const info = db.run('INSERT INTO kb_docs (title, source, kind, mode, chars, chunks) VALUES (?,?,?,?,?,?)', [
+      title,
+      source,
+      kind,
+      mode,
+      text.length,
+      chunks.length
+    ])
+    docId = Number(info.lastInsertRowid)
     for (let i = 0; i < chunks.length; i++) {
       db.run('INSERT INTO kb_chunks (docId, ord, text, dim, embedding) VALUES (?,?,?,?,?)', [
         docId,
@@ -101,6 +105,23 @@ export async function search(query: string, topK?: number): Promise<KbHit[]> {
   }))
   scored.sort((a, b) => b.score - a.score)
   return scored.slice(0, k)
+}
+
+/**
+ * Ile dokumentow bierze udzial w wyszukiwaniu. Dokumenty zaindeksowane w innym
+ * trybie maja wektory o innej dlugosci i sa dla zapytania niewidoczne - bez tego
+ * raportu znikaja z wynikow bez slowa wyjasnienia.
+ */
+export async function coverage(): Promise<{ total: number; searchable: number; stale: KbDoc[] }> {
+  const docs = listDocs()
+  const { vectors } = await embedTexts(['test'])
+  const dim = vectors[0].length
+  const rows = getDb().all(
+    'SELECT DISTINCT docId FROM kb_chunks WHERE dim = ?',
+    [dim]
+  ) as { docId: number }[]
+  const ok = new Set(rows.map((r) => r.docId))
+  return { total: docs.length, searchable: ok.size, stale: docs.filter((d) => !ok.has(d.id)) }
 }
 
 export function listDocs(): KbDoc[] {

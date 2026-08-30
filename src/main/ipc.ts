@@ -1,10 +1,11 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { basename } from 'path'
 import { crud, dbFile } from './db'
 import { getPublicSettings, getSettings, setSettings } from './settings'
 import { provider } from './ai/provider'
 import { categorizeFiles, runAiTask, type AiTaskInput } from './ai/tasks'
-import { buildContext, indexFile, indexText, listDocs, removeDoc, search } from './rag'
-import { libraryStats, openFile, revealFile, scanFolder } from './library'
+import { buildContext, coverage, indexFile, indexText, listDocs, removeDoc, search } from './rag'
+import { openFile, revealFile, scanFolder } from './library'
 import { overview } from './stats'
 import { exportDocument, openExported, type ExportRequest } from './exporter'
 import type { AppSettings, ChatTurn, EngineId, KbHit, LibraryKind } from '../shared/types'
@@ -74,6 +75,13 @@ export function registerIpc(): void {
       }
       turns.push(...payload.messages)
 
+      // Pytanie zapisujemy przed wyslaniem do modelu. Inaczej nieudana albo
+      // przerwana odpowiedz zostawia w historii odpowiedz bez pytania.
+      const lastUser = [...payload.messages].reverse().find((m) => m.role === 'user')
+      if (payload.sessionId && lastUser) {
+        crud.create('chat_messages', { sessionId: payload.sessionId, role: 'user', content: lastUser.content })
+      }
+
       try {
         const text = await provider().chat(turns, {
           signal: controller.signal,
@@ -84,9 +92,8 @@ export function registerIpc(): void {
           }
         })
 
-        if (payload.sessionId) {
-          const last = [...payload.messages].reverse().find((m) => m.role === 'user')
-          if (last) crud.create('chat_messages', { sessionId: payload.sessionId, role: 'user', content: last.content })
+        // Nawet urwana odpowiedz warto zachowac - uzytkownik zatrzymal ja swiadomie.
+        if (payload.sessionId && text.trim()) {
           crud.create('chat_messages', { sessionId: payload.sessionId, role: 'assistant', content: text })
         }
         return { text, sources }
@@ -127,15 +134,39 @@ export function registerIpc(): void {
   handle('kb:index-text', (_e, p: { title: string; source: string; kind: string; text: string }) =>
     indexText(p.title, p.source, p.kind, p.text)
   )
-  handle('kb:index-file', (_e, path: string) => indexFile(path))
-  handle('kb:index-files', async (_e, paths: string[]) => {
+  handle('kb:coverage', () => coverage())
+  handle('kb:index-files', async (event, payload: { paths: string[]; requestId?: string }) => {
+    const paths = payload.paths ?? []
+    const controller = new AbortController()
+    if (payload.requestId) aborts.set(payload.requestId, controller)
     const results: { path: string; ok: boolean; message: string }[] = []
-    for (const path of paths) {
-      try {
-        const r = await indexFile(path)
-        results.push({ path, ok: true, message: `${r.chunks} fragmentow (tryb: ${r.mode})` })
-      } catch (e) {
-        results.push({ path, ok: false, message: (e as Error).message })
+    try {
+      for (let i = 0; i < paths.length; i++) {
+        if (controller.signal.aborted) break
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('kb:progress', {
+            requestId: payload.requestId,
+            current: i,
+            total: paths.length,
+            file: basename(paths[i])
+          })
+        }
+        try {
+          const r = await indexFile(paths[i])
+          results.push({ path: paths[i], ok: true, message: `${r.chunks} fragmentow (tryb: ${r.mode})` })
+        } catch (e) {
+          results.push({ path: paths[i], ok: false, message: (e as Error).message })
+        }
+      }
+    } finally {
+      if (payload.requestId) aborts.delete(payload.requestId)
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('kb:progress', {
+          requestId: payload.requestId,
+          current: paths.length,
+          total: paths.length,
+          file: ''
+        })
       }
     }
     return results
@@ -143,7 +174,6 @@ export function registerIpc(): void {
 
   /* ---------- Biblioteki plikow ---------- */
   handle('lib:scan', (_e, kind: LibraryKind, folder: string) => scanFolder(kind, folder))
-  handle('lib:stats', (_e, kind: LibraryKind) => libraryStats(kind))
   handle('lib:open', (_e, path: string) => openFile(path))
   handle('lib:reveal', (_e, path: string) => revealFile(path))
 

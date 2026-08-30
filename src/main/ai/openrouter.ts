@@ -40,7 +40,7 @@ export class OpenRouterProvider implements LLMProvider {
     if (!res.ok) throw await httpError(res, 'OpenRouter /chat/completions')
 
     let full = ''
-    await readLines(res, (line) => {
+    const onLine = (line: string): void => {
       if (!line.startsWith('data:')) return
       const payload = line.slice(5).trim()
       if (!payload || payload === '[DONE]') return
@@ -55,7 +55,13 @@ export class OpenRouterProvider implements LLMProvider {
       } catch {
         /* pomijamy komentarze i niepelne ramki SSE */
       }
-    })
+    }
+    try {
+      await readLines(res, onLine)
+    } catch (e) {
+      // Zatrzymanie przez uzytkownika nie jest bledem - oddajemy to, co juz doszlo.
+      if ((e as Error).name !== 'AbortError') throw e
+    }
     return full
   }
 

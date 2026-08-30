@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import type { Project, Task } from '../../../shared/types'
-import { api, errMsg, fmtDate, useList } from '../lib/api'
-import { AiActionPanel, Confirm, Empty, ErrorBox, Field, Modal } from '../lib/ui'
+import { api, errMsg, fmtDate, useDebounced, useList } from '../lib/api'
+import { Icon } from '../lib/icons'
+import { AiActionPanel, Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from '../lib/ui'
 
 const PRIO = ['niski', 'normalny', 'wysoki']
 
@@ -11,13 +12,14 @@ export default function Tasks(): React.JSX.Element {
   const [quick, setQuick] = useState('')
   const [editing, setEditing] = useState<Partial<Task> | null>(null)
   const [error, setError] = useState('')
+  const debouncedSearch = useDebounced(search)
 
   const query = {
     ...(filter === 'all' ? {} : { where: { done: filter === 'done' ? 1 : 0 } }),
-    search: { columns: ['title', 'notes'], term: search },
+    search: { columns: ['title', 'notes'], term: debouncedSearch },
     orderBy: 'id desc'
   }
-  const { items, reload } = useList<Task>('tasks', query, [filter, search])
+  const { items, loading, error: listError, reload } = useList<Task>('tasks', query, [filter, debouncedSearch])
   const { items: projects } = useList<Project>('projects', { orderBy: 'name asc' })
 
   const projectName = (id: number | null): string => projects.find((p) => p.id === id)?.name ?? ''
@@ -69,11 +71,11 @@ export default function Tasks(): React.JSX.Element {
 
   return (
     <>
-      <ErrorBox error={error} />
+      <ErrorBox error={error || listError} />
       <div className="cols">
         <div>
-          <div className="card" style={{ marginBottom: 14 }}>
-            <div className="row" style={{ marginBottom: 10 }}>
+          <div className="card stack-lg">
+            <div className="row stack-sm">
               <input
                 className="grow"
                 placeholder="Nowe zadanie i Enter..."
@@ -86,7 +88,7 @@ export default function Tasks(): React.JSX.Element {
               </button>
             </div>
             <div className="row">
-              <select style={{ width: 140 }} value={filter} onChange={(e) => setFilter(e.target.value as 'open')}>
+              <select className="w-filter" aria-label="Filtr zadan" value={filter} onChange={(e) => setFilter(e.target.value as 'open')}>
                 <option value="open">Otwarte</option>
                 <option value="done">Ukonczone</option>
                 <option value="all">Wszystkie</option>
@@ -98,18 +100,24 @@ export default function Tasks(): React.JSX.Element {
                 onChange={(e) => setSearch(e.target.value)}
               />
               <button className="btn sm" onClick={() => setEditing({ title: '', priority: 1 })}>
-                + Szczegolowe
+                <Icon name="plus" /> Szczegolowe
               </button>
             </div>
           </div>
 
-          {items.length === 0 && <Empty text="Brak zadan." />}
+          {loading && <Skeleton rows={5} height={48} />}
+          {!loading && items.length === 0 && (
+            <Empty
+              text={filter === 'done' ? 'Nic jeszcze nie zostalo ukonczone.' : 'Brak zadan. Wpisz jedno powyzej i nacisnij Enter.'}
+              icon="tasks"
+            />
+          )}
           {items.map((t) => (
             <div key={t.id} className="list-item">
               <div className="row">
                 <input
                   type="checkbox"
-                  style={{ width: 16 }}
+                  aria-label={'Oznacz "' + t.title + '" jako ' + (t.done ? 'niewykonane' : 'wykonane')}
                   checked={!!t.done}
                   onChange={() => void toggle(t)}
                   onClick={(e) => e.stopPropagation()}
@@ -122,11 +130,7 @@ export default function Tasks(): React.JSX.Element {
                   {t.title}
                 </span>
                 <span className={`pill p${t.priority}`}>{PRIO[t.priority]}</span>
-                {t.due && (
-                  <span className="pill" style={overdue(t) ? { borderColor: 'var(--err)', color: 'var(--err)' } : {}}>
-                    {fmtDate(t.due)}
-                  </span>
-                )}
+                {t.due && <span className={'pill ' + (overdue(t) ? 'late' : '')}>{fmtDate(t.due)}</span>}
                 <Confirm
                   text={`Usunac "${t.title}"?`}
                   onYes={() => {
@@ -135,8 +139,12 @@ export default function Tasks(): React.JSX.Element {
                 />
               </div>
               {(t.notes || t.projectId) && (
-                <div className="muted" style={{ marginTop: 4 }}>
-                  {projectName(t.projectId) && `📂 ${projectName(t.projectId)}  `}
+                <div className="muted stack-xs">
+                  {projectName(t.projectId) && (
+                    <>
+                      <Icon name="folder" /> {projectName(t.projectId)}{' '}
+                    </>
+                  )}
                   {t.notes}
                 </div>
               )}

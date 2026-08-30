@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { AiTaskName } from '../../../shared/types'
 import { api, errMsg, newRequestId } from '../lib/api'
-import { ErrorBox, ExportButtons, Field, Markdown } from '../lib/ui'
+import { ErrorBox, ExportButtons, Field, Markdown, toast } from '../lib/ui'
+import { Icon } from '../lib/icons'
 
 const MODES: { task: AiTaskName; label: string; placeholder: string }[] = [
   {
@@ -60,15 +61,19 @@ export default function Generator(): React.JSX.Element {
 
   const saveAsNote = async (): Promise<void> => {
     if (!out) return
-    const title = brief.slice(0, 60)
-    await api.crud.create('notes', { title, body: out, tags: 'generator' })
-    window.alert('Zapisano jako notatke.')
+    const title = brief.trim().split(/\r?\n/)[0].slice(0, 60) || 'Tekst z generatora'
+    try {
+      await api.crud.create('notes', { title, body: out, tags: 'generator' })
+      toast('Zapisano jako notatke "' + title + '".')
+    } catch (e) {
+      toast(errMsg(e), 'error')
+    }
   }
 
   return (
     <div className="cols">
       <div className="card">
-        <div className="row" style={{ marginBottom: 12 }}>
+        <div className="row stack-lg">
           {MODES.map((m) => (
             <button
               key={m.task}
@@ -81,7 +86,7 @@ export default function Generator(): React.JSX.Element {
         </div>
 
         <Field label="Brief - co ma powstac">
-          <textarea style={{ minHeight: 150 }} placeholder={mode.placeholder} value={brief} onChange={(e) => setBrief(e.target.value)} />
+          <textarea className="brief" placeholder={mode.placeholder} value={brief} onChange={(e) => setBrief(e.target.value)} />
         </Field>
 
         <div className="row">
@@ -108,24 +113,23 @@ export default function Generator(): React.JSX.Element {
         </div>
 
         {task === 'generate-document' && (
-          <label className="row" style={{ gap: 6, cursor: 'pointer', marginBottom: 10 }}>
+          <label className="row check stack-sm">
             <input
               type="checkbox"
-              style={{ width: 16 }}
               checked={useKnowledge}
               onChange={(e) => setUseKnowledge(e.target.checked)}
             />
-            <span className="muted">🧠 Uzyj bazy wiedzy jako zrodla</span>
+            <span className="muted"><Icon name="knowledge" /> Uzyj bazy wiedzy jako zrodla</span>
           </label>
         )}
 
         <div className="row">
           <button className="btn primary" onClick={run} disabled={busy}>
-            {busy ? <span className="spinner" /> : '✨'} Generuj
+            {busy ? <span className="spinner" /> : <Icon name="sparkle" />} Generuj
           </button>
           {busy && (
             <button className="btn" onClick={() => api.ai.abort(reqRef.current)}>
-              Przerwij
+              <Icon name="stop" /> Zatrzymaj
             </button>
           )}
         </div>
@@ -133,21 +137,23 @@ export default function Generator(): React.JSX.Element {
       </div>
 
       <div className="card">
-        <div className="row" style={{ marginBottom: 10 }}>
-          <h3 className="grow" style={{ margin: 0 }}>
+        <div className="row stack-sm">
+          <h3 className="grow flush">
             Wynik
           </h3>
           {out && (
             <>
               <button className="btn sm" onClick={saveAsNote}>
-                💾 Jako notatka
+                <Icon name="save" /> Jako notatka
               </button>
               <ExportButtons title={brief.slice(0, 50) || 'dokument'} content={out} />
             </>
           )}
         </div>
         {out ? (
-          <Markdown text={out} />
+          <div className="ai-output">
+            <Markdown text={out} />
+          </div>
         ) : (
           <div className="muted">
             Wynik pojawi sie tutaj. Mozesz go wyeksportowac do PDF, DOCX lub Markdown albo zapisac jako notatke.

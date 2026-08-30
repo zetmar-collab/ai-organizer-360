@@ -1,18 +1,26 @@
 import React, { useMemo, useState } from 'react'
 import type { Transaction } from '../../../shared/types'
-import { api, errMsg, fmtDate, fmtMoney, todayISO, useList } from '../lib/api'
-import { Confirm, Empty, ErrorBox, Field, Modal } from '../lib/ui'
+import { api, errMsg, fmtDate, fmtMoney, todayISO, useDebounced, useList } from '../lib/api'
+import { Icon } from '../lib/icons'
+import { Confirm, Empty, ErrorBox, Field, Modal, Skeleton } from '../lib/ui'
 
 export default function Finance(): React.JSX.Element {
   const [editing, setEditing] = useState<Partial<Transaction> | null>(null)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounced(search)
 
-  const { items, reload } = useList<Transaction>(
+  const { items, loading, reload } = useList<Transaction>(
     'transactions',
-    { search: { columns: ['description', 'category', 'account'], term: search }, orderBy: 'date desc', limit: 1000 },
-    [search]
+    {
+      search: { columns: ['description', 'category', 'account'], term: debouncedSearch },
+      orderBy: 'date desc',
+      limit: 1000
+    },
+    [debouncedSearch]
   )
+
+  const filtered = Boolean(debouncedSearch.trim())
 
   const summary = useMemo(() => {
     let income = 0
@@ -71,27 +79,27 @@ export default function Finance(): React.JSX.Element {
   return (
     <>
       <ErrorBox error={error} />
-      <div className="cols-3" style={{ marginBottom: 14 }}>
-        <div className="kpi">
-          <span>Przychody</span>
-          <b style={{ color: 'var(--ok)' }}>{fmtMoney(summary.income)}</b>
+      <div className="cols-3 stack-lg">
+        <div className="kpi pos">
+          <span>Przychody{filtered ? ' w filtrze' : ''}</span>
+          <b>{fmtMoney(summary.income)}</b>
         </div>
-        <div className="kpi">
-          <span>Wydatki</span>
-          <b style={{ color: 'var(--err)' }}>{fmtMoney(summary.expense)}</b>
+        <div className="kpi neg">
+          <span>Wydatki{filtered ? ' w filtrze' : ''}</span>
+          <b>{fmtMoney(summary.expense)}</b>
         </div>
-        <div className="kpi">
-          <span>Bilans</span>
-          <b style={{ color: summary.balance >= 0 ? 'var(--ok)' : 'var(--err)' }}>{fmtMoney(summary.balance)}</b>
+        <div className={'kpi ' + (summary.balance >= 0 ? 'pos' : 'neg')}>
+          <span>Bilans{filtered ? ' w filtrze' : ''}</span>
+          <b>{fmtMoney(summary.balance)}</b>
         </div>
       </div>
 
-      <div className="cols" style={{ marginBottom: 14 }}>
+      <div className="cols stack-lg">
         <div className="card">
           <h3>Wydatki wg kategorii</h3>
           {summary.byCat.length === 0 && <span className="muted">Brak danych.</span>}
           {summary.byCat.map(([cat, val]) => (
-            <div key={cat} style={{ marginBottom: 8 }}>
+            <div key={cat} className="stack-sm">
               <div className="row">
                 <span className="grow">{cat}</span>
                 <span className="muted">{fmtMoney(val)}</span>
@@ -124,12 +132,12 @@ export default function Finance(): React.JSX.Element {
       </div>
 
       <div className="card">
-        <div className="row" style={{ marginBottom: 10 }}>
+        <div className="row stack-sm">
           <button
             className="btn primary"
             onClick={() => setEditing({ date: todayISO(), kind: 'expense', amount: 0 })}
           >
-            + Transakcja
+            <Icon name="plus" /> Transakcja
           </button>
           <input
             className="grow"
@@ -139,18 +147,20 @@ export default function Finance(): React.JSX.Element {
           />
         </div>
 
-        {items.length === 0 ? (
-          <Empty text="Brak transakcji." />
+        {loading ? (
+          <Skeleton rows={4} height={40} />
+        ) : items.length === 0 ? (
+          <Empty text={filtered ? 'Nic nie pasuje do wyszukiwania.' : 'Brak transakcji.'} icon="finance" />
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="scroll-x">
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: 100 }}>Data</th>
+                  <th className="col-mid">Data</th>
                   <th>Opis</th>
-                  <th style={{ width: 130 }}>Kategoria</th>
-                  <th style={{ width: 120 }}>Kwota</th>
-                  <th style={{ width: 120 }}>Akcje</th>
+                  <th className="col-mid">Kategoria</th>
+                  <th className="col-mid">Kwota</th>
+                  <th className="col-mid">Akcje</th>
                 </tr>
               </thead>
               <tbody>
@@ -162,7 +172,7 @@ export default function Finance(): React.JSX.Element {
                       {t.account && <div className="muted">{t.account}</div>}
                     </td>
                     <td>{t.category ? <span className="pill">{t.category}</span> : <span className="muted">-</span>}</td>
-                    <td style={{ color: t.kind === 'income' ? 'var(--ok)' : 'var(--err)' }}>
+                    <td className={'mono ' + (t.kind === 'income' ? 'amount-in' : 'amount-out')}>
                       {t.kind === 'income' ? '+' : '-'}
                       {fmtMoney(t.amount)}
                     </td>
