@@ -143,6 +143,16 @@ const PATHS: Record<string, React.JSX.Element> = {
     </>
   ),
   moon: P('M20 14.2A8.4 8.4 0 019.8 4 8.4 8.4 0 1020 14.2z'),
+  playlist: (
+    <>
+      <path d="M4 6h11M4 11h11M4 16h6" />
+      <circle cx="17" cy="17" r="3" />
+      <path d="M20 17V8l-3 1" />
+    </>
+  ),
+  list: P('M4 7h16M4 12h16M4 17h16'),
+  chevronRight: P('M9.5 6l6 6-6 6'),
+  chevronDown: P('M6 9.5l6 6 6-6'),
   check: P('M5 12.5l4.5 4.5L19 7'),
   close: P('M6 6l12 12M18 6L6 18')
 }

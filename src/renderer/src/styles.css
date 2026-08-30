@@ -1291,3 +1291,87 @@ tr:hover td {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* =========================== muzyka: katalogi i playlisty ============================== */
+
+.view-switch {
+  display: inline-flex;
+  gap: var(--s1);
+}
+
+.playlist-field {
+  flex: 1;
+  min-width: 180px;
+  margin-bottom: 0;
+}
+
+.playlist-save {
+  align-self: flex-end;
+}
+
+.folder {
+  border-bottom: 1px solid var(--border);
+}
+
+.folder:last-child {
+  border-bottom: none;
+}
+
+.folder-head {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  padding: var(--s2) var(--s3);
+}
+
+.folder-head:hover {
+  background: var(--surface-hover);
+}
+
+.folder-head > input[type='checkbox'] {
+  flex: none;
+}
+
+.folder-toggle {
+  display: flex;
+  flex: 1;
+  gap: var(--s2);
+  align-items: center;
+  min-width: 0;
+  padding: var(--s1) 0;
+  text-align: left;
+}
+
+.folder-toggle b {
+  display: block;
+  font-size: var(--fs-sm);
+}
+
+.folder-path {
+  display: block;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-tracks {
+  padding: 0 var(--s3) var(--s2) var(--s7);
+}
+
+.track {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+}
+
+.track:hover {
+  background: var(--surface-hover);
+}
+
+.track > input[type='checkbox'] {
+  flex: none;
+}

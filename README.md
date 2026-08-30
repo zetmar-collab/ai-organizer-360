@@ -29,7 +29,8 @@ Windows SmartScreen pokaze ostrzezenie, bo pliki nie sa podpisane certyfikatem -
 | Zadania | priorytety, terminy, projekty, szybkie dodawanie, **inteligentne przypomnienia (AI)** |
 | Notatki | edytor Markdown z podgladem, tagi, **podsumowania (AI)**, wysylka do bazy wiedzy |
 | Projekty | status, postep zadan, kolor, licznik notatek |
-| Dokumenty / Muzyka / E-booki / Zdjecia | skanowanie folderow, wyszukiwanie, **automatyczna kategoryzacja plikow (AI)** |
+| Dokumenty / E-booki / Zdjecia | skanowanie folderow, wyszukiwanie, **automatyczna kategoryzacja plikow (AI)** |
+| Muzyka | to samo co wyzej plus **widok katalogow** (grupowanie tak, jak muzyka lezy na dysku) i **tworzenie playlist** w formatach M3U8, M3U, PLS, XSPF i WPL |
 | Finanse | przychody i wydatki, kategorie, bilans miesieczny |
 | Statystyki | KPI, wykresy 30-dniowe, **analiza produktywnosci (AI)** |
 | Czat AI | streaming odpowiedzi, historia rozmow, tryb **rozmowy z wlasnymi dokumentami (RAG)** |
@@ -96,6 +97,7 @@ src/
     extract.ts     ekstrakcja tekstu z PDF (pdfjs), DOCX (mammoth), plikow tekstowych
     library.ts     skanowanie folderow z plikami
     exporter.ts    eksport PDF (printToPDF), DOCX (docx), Markdown
+    playlist.ts    zapis playlist muzycznych (M3U8/M3U/PLS/XSPF/WPL)
     ipc.ts         wszystkie kanaly IPC
   preload/         kontekstowo izolowany most (contextBridge)
   renderer/        interfejs React
@@ -103,6 +105,24 @@ src/
                    miedzy procesami i pokryte testami
 test/            testy jednostkowe (Vitest) + harness RAG do testu recznego
 ```
+
+### Playlisty
+
+W module Muzyka utwory sa grupowane po katalogu, w ktorym leza na dysku. Zaznaczasz cale katalogi
+albo pojedyncze utwory i zapisujesz playliste w wybranym formacie:
+
+| Format | Uwagi |
+| --- | --- |
+| M3U8 | domyslny, UTF-8 - polskie znaki bezpieczne (VLC, foobar2000, Winamp) |
+| M3U | starszy wariant tej samej struktury |
+| PLS | Winamp i odtwarzacze sieciowe |
+| XSPF | otwarty format XML, natywny dla VLC |
+| WPL | Windows Media Player |
+
+Opcja "sciezki wzgledne" liczy sciezki od katalogu, w ktorym zapisujesz playliste - dzieki temu
+playlista lezaca przy muzyce dziala po przeniesieniu na inny dysk. Pliki spoza tego katalogu
+zostaja zapisane sciezka bezwzgledna. Dlugosc utworow zapisujemy jako -1 (nieznana), bo aplikacja
+nie czyta metadanych audio.
 
 Bezpieczenstwo: `contextIsolation: true`, `nodeIntegration: false`, CSP w `index.html`, linki zewnetrzne
 otwierane w przegladarce systemowej, zapisy do bazy przez whiteliste kolumn.

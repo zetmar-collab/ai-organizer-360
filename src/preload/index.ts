@@ -11,6 +11,7 @@ import type {
   LibraryKind,
   SearchHit
 } from '../shared/types'
+import type { PlaylistFormat, PlaylistTrack } from '../shared/playlist'
 
 export interface TokenEvent {
   requestId: string
@@ -109,6 +110,16 @@ const api = {
       canceled?: boolean
     }> => ipcRenderer.invoke('export:document', req),
     open: (path: string): Promise<{ ok: true }> => ipcRenderer.invoke('export:open', path)
+  },
+
+  playlist: {
+    save: (req: {
+      format: PlaylistFormat
+      name: string
+      tracks: PlaylistTrack[]
+      relative: boolean
+    }): Promise<{ ok: boolean; path?: string; canceled?: boolean; tracks?: number }> =>
+      ipcRenderer.invoke('playlist:save', req)
   },
 
   dialog: {

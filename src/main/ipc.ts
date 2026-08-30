@@ -9,6 +9,7 @@ import { openFile, revealFile, scanFolder } from './library'
 import { overview } from './stats'
 import { globalKnowledge, globalSearch } from './search'
 import { exportDocument, openExported, type ExportRequest } from './exporter'
+import { savePlaylist, type SavePlaylistRequest } from './playlist'
 import type { AppSettings, ChatTurn, EngineId, KbHit, LibraryKind } from '../shared/types'
 
 const aborts = new Map<string, AbortController>()
@@ -189,6 +190,10 @@ export function registerIpc(): void {
   handle('export:document', (event, req: ExportRequest) =>
     exportDocument(req, BrowserWindow.fromWebContents(event.sender) ?? undefined)
   )
+  handle('playlist:save', (event, req: SavePlaylistRequest) =>
+    savePlaylist(req, BrowserWindow.fromWebContents(event.sender) ?? undefined)
+  )
+
   handle('export:open', (_e, path: string) => {
     openExported(path)
     return { ok: true }

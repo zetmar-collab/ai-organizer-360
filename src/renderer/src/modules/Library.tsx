@@ -3,6 +3,7 @@ import type { LibraryFile, LibraryKind } from '../../../shared/types'
 import { api, errMsg, fmtBytes, newRequestId, useDebounced, useList } from '../lib/api'
 import { Icon, type IconName } from '../lib/icons'
 import { Confirm, Empty, ErrorBox, Progress, Skeleton, toast } from '../lib/ui'
+import MusicFolders from './MusicFolders'
 
 interface Config {
   title: string
@@ -31,6 +32,8 @@ export default function Library({
   const cfg = CONFIG[kind]
   const [search, setSearch] = useState(initialSearch ?? '')
   const [category, setCategory] = useState('')
+  // muzyke domyslnie pokazujemy w ukladzie katalogow - stad powstaja playlisty
+  const [view, setView] = useState<'list' | 'folders'>(kind === 'music' ? 'folders' : 'list')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<{ current: number; total: number; file: string } | null>(null)
@@ -146,6 +149,19 @@ export default function Library({
               <Icon name="knowledge" /> Indeksuj {Math.min(indexable.length, INDEX_LIMIT)} plikow
             </button>
           )}
+          {kind === 'music' && (
+            <span className="view-switch">
+              <button
+                className={'btn sm ' + (view === 'folders' ? 'primary' : '')}
+                onClick={() => setView('folders')}
+              >
+                <Icon name="folder" /> Katalogi
+              </button>
+              <button className={'btn sm ' + (view === 'list' ? 'primary' : '')} onClick={() => setView('list')}>
+                <Icon name="list" /> Lista
+              </button>
+            </span>
+          )}
           <span className="grow" />
           <span className="muted">
             {filtered ? 'w filtrze: ' : ''}
@@ -188,6 +204,8 @@ export default function Library({
 
       {loading ? (
         <Skeleton rows={5} height={44} />
+      ) : view === 'folders' ? (
+        <MusicFolders files={items} />
       ) : items.length === 0 ? (
         <Empty
           text={
