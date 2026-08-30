@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "dist": "electron-vite build && electron-builder --win --publish never",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dist:store": "electron-vite build && electron-builder --win appx --publish never",
+    "dist:msix-test": "electron-vite build && electron-builder --win appx --publish never -c.appx.artifactName=AI-Organizer-360-${version}-test-signed.appx && node tools/sign-msix.cjs release/AI-Organizer-360-1.0.0-test-signed.appx 5047763DCF5DB77675453898888D521F3FED424D"
   },
   "dependencies": {
     "docx": "^9.5.0",
@@ -63,7 +65,8 @@
           ]
         }
       ],
-      "artifactName": "AI-Organizer-360-${version}-${arch}.${ext}"
+      "artifactName": "AI-Organizer-360-${version}-${arch}.${ext}",
+      "icon": "build/icon.ico"
     },
     "portable": {
       "artifactName": "AI-Organizer-360-${version}-portable.exe"
@@ -74,6 +77,20 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "AI Organizer 360"
+    },
+    "appx": {
+      "identityName": "MarekZettel-zetmar.AIOrganizer360",
+      "publisher": "CN=15A53D32-C868-48EE-B700-5DBB5449CA1B",
+      "publisherDisplayName": "Marek Zettel - zetmar",
+      "applicationId": "AIOrganizer360",
+      "displayName": "AI Organizer 360",
+      "backgroundColor": "#131417",
+      "languages": [
+        "pl-PL",
+        "en-US"
+      ],
+      "showNameOnTiles": true,
+      "artifactName": "AI-Organizer-360-${version}-store.appx"
     }
   }
 }

@@ -21,6 +21,43 @@ Po zbudowaniu znajduja sie w katalogu `release/`:
 
 Windows SmartScreen pokaze ostrzezenie, bo pliki nie sa podpisane certyfikatem - "Wiecej informacji" -> "Uruchom mimo to".
 
+## Wersja dla Microsoft Store (MSIX)
+
+| Skrypt | Wynik | Podpis |
+| --- | --- | --- |
+| `npm run dist:store` | `release/AI-Organizer-360-<wersja>-store.appx` | **brak** - pakiet podpisuje Partner Center |
+| `npm run dist:msix-test` | `release/AI-Organizer-360-<wersja>-test-signed.appx` | certyfikat testowy z magazynu Windows |
+
+Tozsamosc pakietu (z Partner Center):
+
+```
+Identity/Name            MarekZettel-zetmar.AIOrganizer360
+Identity/Publisher       CN=15A53D32-C868-48EE-B700-5DBB5449CA1B
+PublisherDisplayName     Marek Zettel - zetmar
+Package Family Name      MarekZettel-zetmar.AIOrganizer360_411qrz2m02jw4
+```
+
+Instalacja wersji testowej i jej usuniecie:
+
+```bash
+Add-AppxPackage -Path release\AI-Organizer-360-1.0.0-test-signed.appx
+```
+
+```bash
+Get-AppxPackage -Name MarekZettel-zetmar.AIOrganizer360 | Remove-AppxPackage
+```
+
+Uwagi:
+
+- Podpisywanie MSIX robi `tools/sign-msix.cjs`, bo signtool dolaczony do electron-buildera jest
+  za stary i konczy sie bledem "A required function is not present". Skrypt siega po signtool.exe
+  z Windows SDK i podpisuje certyfikatem o podanym odcisku.
+- Manifest deklaruje `runFullTrust` - to wymog kazdej aplikacji Win32 w Store i przy zgloszeniu
+  trzeba o te mozliwosc poprosic w Partner Center.
+- Kazde kolejne zgloszenie wymaga wyzszego numeru wersji w `package.json`.
+- Ikony i kafelki powstaja skryptem `tools/make-icons.cjs` (renderuje znak w Electronie i sklada
+  wielorozmiarowy `.ico`) - nie ma zadnej zaleznosci od bibliotek graficznych.
+
 ## Moduly
 
 | Modul | Co robi |
