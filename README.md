@@ -1,5 +1,11 @@
 # AI Organizer 360
 
+[![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-pobierz%20za%20darmo-0078D4?logo=windows&logoColor=white)](https://apps.microsoft.com/detail/9NP4HNDX4VVZ)
+[![Wersja](https://img.shields.io/badge/wersja-1.1.0-d99a4e)](https://github.com/zetmar-collab/ai-organizer-360/releases/latest)
+[![Testy](https://img.shields.io/badge/testy-90%20zielonych-4a7a3a)](test)
+
+**Aplikacja jest dostepna w Microsoft Store: https://apps.microsoft.com/detail/9NP4HNDX4VVZ**
+
 Lokalna aplikacja desktopowa dla Windows: organizer (kalendarz, zadania, notatki, projekty, biblioteki plikow,
 finanse, statystyki) z wbudowanym czatem AI, baza wiedzy RAG i generatorem dokumentow.
 
@@ -10,16 +16,25 @@ Dwa silniki AI, przelaczane jednym kliknieciem:
 
 Wszystkie dane sa trzymane lokalnie w jednym pliku SQLite - bez konta, bez abonamentu, bez chmury.
 
-## Gotowe pliki .exe
+![Kalendarz z planem dnia ulozonym przez lokalny model](store/screenshots/01-kalendarz.png)
 
-Po zbudowaniu znajduja sie w katalogu `release/`:
+## Instalacja
+
+**Zalecane - Microsoft Store:** https://apps.microsoft.com/detail/9NP4HNDX4VVZ
+Aktualizacje przychodza automatycznie, pakiet jest podpisany przez Microsoft, instalacja jednym kliknieciem.
+
+**Alternatywnie - pliki .exe** z [ostatniego wydania](https://github.com/zetmar-collab/ai-organizer-360/releases/latest):
 
 | Plik | Opis |
 | --- | --- |
 | `AI-Organizer-360-1.1.0-x64.exe` | instalator (NSIS, wybor katalogu, skrot na pulpicie) |
 | `AI-Organizer-360-1.1.0-portable.exe` | wersja przenosna, uruchamiana bez instalacji |
 
-Windows SmartScreen pokaze ostrzezenie, bo pliki nie sa podpisane certyfikatem - "Wiecej informacji" -> "Uruchom mimo to".
+Pliki .exe nie sa podpisane certyfikatem, wiec SmartScreen pokaze ostrzezenie - "Wiecej informacji" -> "Uruchom mimo to".
+Wersja ze Store tego problemu nie ma.
+
+Uwaga: wydanie ze Store i wydanie instalowane z pliku maja **osobne bazy danych**. Dane przenosi sie
+miedzy nimi przez Ustawienia -> Kopia zapasowa.
 
 ## Wersja dla Microsoft Store (MSIX)
 
