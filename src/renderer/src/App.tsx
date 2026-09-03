@@ -9,6 +9,7 @@ import Tasks from './modules/Tasks'
 import Notes from './modules/Notes'
 import Projects from './modules/Projects'
 import Library from './modules/Library'
+import Audiobooks from './modules/Audiobooks'
 import Finance from './modules/Finance'
 import Stats from './modules/Stats'
 import Chat from './modules/Chat'
@@ -24,6 +25,7 @@ type ViewId =
   | 'documents'
   | 'music'
   | 'ebooks'
+  | 'audiobooks'
   | 'photos'
   | 'finance'
   | 'stats'
@@ -47,6 +49,7 @@ const NAV: NavItem[] = [
   { id: 'documents', icon: 'library', label: 'Dokumenty', group: 'Biblioteki' },
   { id: 'music', icon: 'music', label: 'Muzyka', group: 'Biblioteki' },
   { id: 'ebooks', icon: 'ebook', label: 'E-booki', group: 'Biblioteki' },
+  { id: 'audiobooks', icon: 'audiobook', label: 'Audiobooki', group: 'Biblioteki' },
   { id: 'photos', icon: 'photo', label: 'Zdjecia', group: 'Biblioteki' },
   { id: 'finance', icon: 'finance', label: 'Finanse', group: 'Analiza' },
   { id: 'stats', icon: 'stats', label: 'Statystyki', group: 'Analiza' },
@@ -159,6 +162,8 @@ export default function App(): React.JSX.Element {
         return <Library kind="music" key="music" initialSearch={focusFor('music')?.term} />
       case 'ebooks':
         return <Library kind="ebook" key="ebook" initialSearch={focusFor('ebooks')?.term} />
+      case 'audiobooks':
+        return <Audiobooks initialSearch={focusFor('audiobooks')?.term} />
       case 'photos':
         return <Library kind="photo" key="photo" initialSearch={focusFor('photos')?.term} />
       case 'finance':

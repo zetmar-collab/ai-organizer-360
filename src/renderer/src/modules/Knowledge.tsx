@@ -20,6 +20,7 @@ export default function Knowledge({ initialQuery }: { initialQuery?: string }): 
   const [searched, setSearched] = useState(false)
   const [cover, setCover] = useState<Coverage | null>(null)
   const [progress, setProgress] = useState<{ current: number; total: number; file: string } | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
   const reqRef = useRef('')
 
   const reload = useCallback(async (): Promise<void> => {
@@ -27,6 +28,8 @@ export default function Knowledge({ initialQuery }: { initialQuery?: string }): 
       const [list, cov] = await Promise.all([api.kb.list(), api.kb.coverage()])
       setDocs(list)
       setCover(cov)
+      // po odswiezeniu zostawiamy w zaznaczeniu tylko to, co nadal istnieje
+      setSelected((prev) => new Set(list.filter((d) => prev.has(d.id)).map((d) => d.id)))
       setError('')
     } catch (e) {
       setError(errMsg(e))
@@ -100,6 +103,30 @@ export default function Knowledge({ initialQuery }: { initialQuery?: string }): 
     }
   }
 
+  const toggle = (id: number): void =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  const removeSelected = async (): Promise<void> => {
+    const ids = [...selected]
+    if (!ids.length) return
+    setBusy(true)
+    try {
+      for (const id of ids) await api.kb.remove(id)
+      toast('Usunieto ' + ids.length + ' dokumentow z bazy wiedzy.')
+      await reload()
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const allSelected = docs.length > 0 && selected.size === docs.length
+
   const totalChunks = docs.reduce((s, d) => s + d.chunks, 0)
   const mixed = cover ? cover.total - cover.searchable : 0
 
@@ -127,6 +154,8 @@ export default function Knowledge({ initialQuery }: { initialQuery?: string }): 
         )}
 
         <p className="muted hint stack-md">
+          Baza wiedzy powstaje wylacznie z plikow dodanych tutaj i z notatek wyslanych przyciskiem „Do bazy wiedzy".
+          Zawartosc jest zapisana na stale w bazie aplikacji - skanowanie bibliotek jej nie zmienia.
           Embeddingi liczy lokalna Ollama. Gdy jest niedostepna, aplikacja przechodzi na awaryjny tryb leksykalny —
           wyszukiwanie dziala offline, ale mniej trafnie.
         </p>
@@ -181,7 +210,16 @@ export default function Knowledge({ initialQuery }: { initialQuery?: string }): 
       </div>
 
       <div className="card">
-        <h3>Zaindeksowane dokumenty</h3>
+        <div className="row stack-sm">
+          <h3 className="grow flush">Zaindeksowane dokumenty</h3>
+          {selected.size > 0 && (
+            <Confirm
+              text={'Usunac ' + selected.size + ' dokumentow z bazy wiedzy?'}
+              label={'Usun zaznaczone (' + selected.size + ')'}
+              onYes={() => void removeSelected()}
+            />
+          )}
+        </div>
         {loading ? (
           <Skeleton rows={3} height={44} />
         ) : docs.length === 0 ? (
@@ -199,6 +237,19 @@ export default function Knowledge({ initialQuery }: { initialQuery?: string }): 
             <table>
               <thead>
                 <tr>
+                  <th className="col-check">
+                    <input
+                      type="checkbox"
+                      aria-label="Zaznacz wszystkie dokumenty"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selected.size > 0 && !allSelected
+                      }}
+                      onChange={() =>
+                        setSelected(allSelected ? new Set() : new Set(docs.map((d) => d.id)))
+                      }
+                    />
+                  </th>
                   <th>Tytul</th>
                   <th className="col-narrow">Typ</th>
                   <th className="col-narrow">Tryb</th>
@@ -210,6 +261,14 @@ export default function Knowledge({ initialQuery }: { initialQuery?: string }): 
               <tbody>
                 {docs.map((d) => (
                   <tr key={d.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={'Zaznacz ' + d.title}
+                        checked={selected.has(d.id)}
+                        onChange={() => toggle(d.id)}
+                      />
+                    </td>
                     <td>
                       <div>{d.title}</div>
                       <div className="muted mono">{d.source}</div>

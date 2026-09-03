@@ -150,6 +150,13 @@ const PATHS: Record<string, React.JSX.Element> = {
       <path d="M20 17V8l-3 1" />
     </>
   ),
+  audiobook: (
+    <>
+      <path d="M4 14v-3a8 8 0 0116 0v3" />
+      <rect x="2.5" y="13.5" width="4.5" height="7" rx="2" />
+      <rect x="17" y="13.5" width="4.5" height="7" rx="2" />
+    </>
+  ),
   list: P('M4 7h16M4 12h16M4 17h16'),
   chevronRight: P('M9.5 6l6 6-6 6'),
   chevronDown: P('M6 9.5l6 6 6-6'),

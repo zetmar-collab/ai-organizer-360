@@ -266,13 +266,22 @@ export default function Settings({
           Wersja <span className="mono">{appInfo?.version}</span>
           {appInfo?.store ? ' • wydanie z Microsoft Store (wlasna, odrebna baza)' : ' • wydanie instalowane z pliku'}
         </p>
-        <p className="muted mono">{appInfo?.db}</p>
+        <p className="muted mono">{appInfo?.dbDir ?? appInfo?.db}</p>
         <p className="muted">
           Rozmiar bazy: <span className="mono">{fmtBytes(appInfo?.dbBytes ?? 0)}</span> • Electron{' '}
           {appInfo?.electron} • Node {appInfo?.node}
         </p>
         <div className="row stack-md">
-          <button className="btn" onClick={() => void api.app.openDataDir()}>
+          <button
+            className="btn"
+            onClick={async () => {
+              try {
+                await api.app.openDataDir()
+              } catch (e) {
+                setError(errMsg(e))
+              }
+            }}
+          >
             <Icon name="open" /> Pokaz folder z danymi
           </button>
         </div>

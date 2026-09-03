@@ -142,6 +142,29 @@ export type AiTaskName =
   | 'reminders'
   | 'generate-document'
 
+export interface Audiobook {
+  id: ID
+  title: string
+  /** 'folder' - katalog z wieloma plikami; 'file' - pojedynczy plik (np. .m4b) */
+  source: 'folder' | 'file'
+  path: string
+  author: string
+  tracks: number
+  bytes: number
+  category: string
+  notes: string
+  addedAt: string
+}
+
+export interface AudiobookTrack {
+  id: ID
+  bookId: ID
+  ord: number
+  name: string
+  path: string
+  bytes: number
+}
+
 export type SearchModule =
   | 'tasks'
   | 'notes'
@@ -150,6 +173,7 @@ export type SearchModule =
   | 'documents'
   | 'music'
   | 'ebooks'
+  | 'audiobooks'
   | 'photos'
   | 'finance'
 

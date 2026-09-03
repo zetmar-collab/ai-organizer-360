@@ -1,8 +1,8 @@
 # AI Organizer 360
 
 [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-pobierz%20za%20darmo-0078D4?logo=windows&logoColor=white)](https://apps.microsoft.com/detail/9NP4HNDX4VVZ)
-[![Wersja](https://img.shields.io/badge/wersja-1.1.0-d99a4e)](https://github.com/zetmar-collab/ai-organizer-360/releases/latest)
-[![Testy](https://img.shields.io/badge/testy-90%20zielonych-4a7a3a)](test)
+[![Wersja](https://img.shields.io/badge/wersja-1.2.0-d99a4e)](https://github.com/zetmar-collab/ai-organizer-360/releases/latest)
+[![Testy](https://img.shields.io/badge/testy-95%20zielonych-4a7a3a)](test)
 
 **Aplikacja jest dostepna w Microsoft Store: https://apps.microsoft.com/detail/9NP4HNDX4VVZ**
 
@@ -27,8 +27,8 @@ Aktualizacje przychodza automatycznie, pakiet jest podpisany przez Microsoft, in
 
 | Plik | Opis |
 | --- | --- |
-| `AI-Organizer-360-1.1.0-x64.exe` | instalator (NSIS, wybor katalogu, skrot na pulpicie) |
-| `AI-Organizer-360-1.1.0-portable.exe` | wersja przenosna, uruchamiana bez instalacji |
+| `AI-Organizer-360-1.2.0-x64.exe` | instalator (NSIS, wybor katalogu, skrot na pulpicie) |
+| `AI-Organizer-360-1.2.0-portable.exe` | wersja przenosna, uruchamiana bez instalacji |
 
 Pliki .exe nie sa podpisane certyfikatem, wiec SmartScreen pokaze ostrzezenie - "Wiecej informacji" -> "Uruchom mimo to".
 Wersja ze Store tego problemu nie ma.
@@ -55,7 +55,7 @@ Package Family Name      MarekZettel-zetmar.AIOrganizer360_411qrz2m02jw4
 Instalacja wersji testowej i jej usuniecie:
 
 ```bash
-Add-AppxPackage -Path release\AI-Organizer-360-1.1.0-test-signed.appx
+Add-AppxPackage -Path release\AI-Organizer-360-1.2.0-test-signed.appx
 ```
 
 ```bash
@@ -82,11 +82,12 @@ Uwagi:
 | Notatki | edytor Markdown z podgladem, tagi, **podsumowania (AI)**, wysylka do bazy wiedzy |
 | Projekty | status, postep zadan, kolor, licznik notatek |
 | Dokumenty / E-booki / Zdjecia | skanowanie folderow, wyszukiwanie, **automatyczna kategoryzacja plikow (AI)** |
+| Audiobooki | **jeden katalog = jedna ksiazka** (nawet gdy zawiera kilkadziesiat mp3), dodawanie wielu podkatalogow naraz oraz pojedynczych plikow (.m4b), tytul/autor/kategoria do edycji |
 | Muzyka | to samo co wyzej plus **widok katalogow** (grupowanie tak, jak muzyka lezy na dysku) i **tworzenie playlist** w formatach M3U8, M3U, PLS, XSPF i WPL |
 | Finanse | przychody i wydatki, kategorie, bilans miesieczny |
 | Statystyki | KPI, wykresy 30-dniowe, **analiza produktywnosci (AI)** |
 | Czat AI | streaming odpowiedzi, historia rozmow, tryb **rozmowy z wlasnymi dokumentami (RAG)** |
-| Baza wiedzy | indeksowanie PDF/DOCX/TXT/MD/CSV/HTML, **wyszukiwanie semantyczne** |
+| Baza wiedzy | budowana **wylacznie z plikow dodanych w tym module** i notatek wyslanych recznie; zapis na stale, zaznaczanie i usuwanie wybranych dokumentow, **wyszukiwanie semantyczne** |
 | Generator | dokumenty, teksty i e-maile, opcjonalnie na bazie wlasnych dokumentow |
 | Eksport | PDF, DOCX, Markdown - z kazdego wyniku AI i z notatek |
 | Wyszukiwanie globalne | **Ctrl+K** - jedno pole przeszukuje zadania, notatki, wydarzenia, projekty, pliki i finanse, a rownolegle semantycznie baze wiedzy; Enter przenosi prosto do znalezionego rekordu |
@@ -150,6 +151,8 @@ src/
     library.ts     skanowanie folderow z plikami
     exporter.ts    eksport PDF (printToPDF), DOCX (docx), Markdown
     playlist.ts    zapis playlist muzycznych (M3U8/M3U/PLS/XSPF/WPL)
+    audiobooks.ts  audiobooki: katalog jako jedna ksiazka albo pojedynczy plik
+    paths.ts       tlumaczenie wirtualnej sciezki MSIX na fizyczna dla Eksploratora
     ipc.ts         wszystkie kanaly IPC
   preload/         kontekstowo izolowany most (contextBridge)
   renderer/        interfejs React

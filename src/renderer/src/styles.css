@@ -1375,3 +1375,12 @@ tr:hover td {
 .track > input[type='checkbox'] {
   flex: none;
 }
+
+.col-check {
+  width: 42px;
+}
+
+.col-check input[type='checkbox'],
+td > input[type='checkbox'] {
+  margin: 0;
+}

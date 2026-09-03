@@ -93,6 +93,21 @@ export function globalSearch(term: string): SearchHit[] {
     })
   }
 
+  const audiobooks = db.all(
+    `SELECT id, title, author, path, tracks FROM audiobooks
+     WHERE title LIKE ? OR author LIKE ? OR category LIKE ? ORDER BY title COLLATE NOCASE LIMIT ?`,
+    [like, like, like, PER_TABLE]
+  ) as { id: number; title: string; author: string; path: string; tracks: number }[]
+  for (const a of audiobooks) {
+    out.push({
+      module: 'audiobooks',
+      id: a.id,
+      title: a.title,
+      subtitle: (a.author ? a.author + ' • ' : '') + (a.tracks === 1 ? '1 plik' : a.tracks + ' plikow'),
+      term: q
+    })
+  }
+
   const tx = db.all(
     `SELECT id, description, category, amount, kind, date FROM transactions
      WHERE description LIKE ? OR category LIKE ? OR account LIKE ? ORDER BY date DESC LIMIT ?`,

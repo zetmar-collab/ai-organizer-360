@@ -230,6 +230,7 @@ export function Confirm({
       }}
     >
       {armed ? 'Na pewno?' : <Icon name="trash" />}
+      {!armed && label !== 'Usun' && <span>{label}</span>}
     </button>
   )
 }

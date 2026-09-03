@@ -11,6 +11,7 @@ const MODULE_LABEL: Record<SearchModule | 'knowledge', string> = {
   documents: 'Dokumenty',
   music: 'Muzyka',
   ebooks: 'E-booki',
+  audiobooks: 'Audiobooki',
   photos: 'Zdjecia',
   finance: 'Finanse',
   knowledge: 'Baza wiedzy'
@@ -24,6 +25,7 @@ const MODULE_ICON: Record<SearchModule | 'knowledge', IconName> = {
   documents: 'library',
   music: 'music',
   ebooks: 'ebook',
+  audiobooks: 'audiobook',
   photos: 'photo',
   finance: 'finance',
   knowledge: 'knowledge'

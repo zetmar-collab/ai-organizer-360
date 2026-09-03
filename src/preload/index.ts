@@ -12,6 +12,7 @@ import type {
   SearchHit
 } from '../shared/types'
 import type { PlaylistFormat, PlaylistTrack } from '../shared/playlist'
+import type { Audiobook, AudiobookTrack } from '../shared/types'
 
 export interface TokenEvent {
   requestId: string
@@ -112,6 +113,24 @@ const api = {
     open: (path: string): Promise<{ ok: true }> => ipcRenderer.invoke('export:open', path)
   },
 
+  audiobooks: {
+    list: (search?: string): Promise<Audiobook[]> => ipcRenderer.invoke('audiobook:list', search),
+    tracks: (bookId: number): Promise<AudiobookTrack[]> => ipcRenderer.invoke('audiobook:tracks', bookId),
+    addParent: (dir: string): Promise<{ added: number; skipped: number; titles: string[] }> =>
+      ipcRenderer.invoke('audiobook:add-parent', dir),
+    addFolder: (dir: string): Promise<{ added: number; skipped: number; titles: string[] }> =>
+      ipcRenderer.invoke('audiobook:add-folder', dir),
+    addFiles: (paths: string[]): Promise<{ added: number; skipped: number; titles: string[] }> =>
+      ipcRenderer.invoke('audiobook:add-files', paths),
+    remove: (id: number): Promise<{ ok: true }> => ipcRenderer.invoke('audiobook:remove', id),
+    update: (id: number, patch: { title?: string; author?: string; category?: string }): Promise<Audiobook> =>
+      ipcRenderer.invoke('audiobook:update', id, patch),
+    play: (id: number): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('audiobook:play', id),
+    openTrack: (path: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('audiobook:open-track', path),
+    reveal: (id: number): Promise<{ ok: true }> => ipcRenderer.invoke('audiobook:reveal', id)
+  },
+
   playlist: {
     save: (req: {
       format: PlaylistFormat
@@ -130,6 +149,7 @@ const api = {
   app: {
     info: (): Promise<{
       db: string
+      dbDir: string
       dbBytes: number
       version: string
       store: boolean
@@ -137,7 +157,7 @@ const api = {
       electron: string
       node: string
     }> => ipcRenderer.invoke('app:info'),
-    openDataDir: (): Promise<{ ok: true }> => ipcRenderer.invoke('app:open-data-dir')
+    openDataDir: (): Promise<{ ok: true; path: string }> => ipcRenderer.invoke('app:open-data-dir')
   },
 
   backup: {

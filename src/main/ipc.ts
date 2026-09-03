@@ -11,6 +11,19 @@ import { globalKnowledge, globalSearch } from './search'
 import { exportDocument, openExported, type ExportRequest } from './exporter'
 import { savePlaylist, type SavePlaylistRequest } from './playlist'
 import { createBackup, restoreBackup } from './backup'
+import { dataDirForExplorer } from './paths'
+import {
+  addFiles as audiobookAddFiles,
+  addFolder as audiobookAddFolder,
+  addFromParent as audiobookAddFromParent,
+  listBooks,
+  listTracks,
+  openTrack,
+  playBook,
+  removeBook,
+  revealBook,
+  updateBook
+} from './audiobooks'
 import type { AppSettings, ChatTurn, EngineId, KbHit, LibraryKind } from '../shared/types'
 
 const aborts = new Map<string, AbortController>()
@@ -221,6 +234,7 @@ export function registerIpc(): void {
   /* ---------- Aplikacja ---------- */
   handle('app:info', () => ({
     db: dbFile(),
+    dbDir: dataDirForExplorer(),
     dbBytes: dbSize(),
     version: app.getVersion(),
     store: Boolean(process.windowsStore),
@@ -232,8 +246,24 @@ export function registerIpc(): void {
   /* ---------- Kopia zapasowa ---------- */
   handle('backup:create', (event) => createBackup(BrowserWindow.fromWebContents(event.sender) ?? undefined))
   handle('backup:restore', (event) => restoreBackup(BrowserWindow.fromWebContents(event.sender) ?? undefined))
-  handle('app:open-data-dir', () => {
-    void shell.showItemInFolder(dbFile())
-    return { ok: true }
+  handle('app:open-data-dir', async () => {
+    // Otwieramy katalog, a nie plik: w wydaniu ze Store sciezka pliku jest
+    // wirtualna i Eksplorator jej nie znajduje.
+    const dir = dataDirForExplorer()
+    const error = await shell.openPath(dir)
+    if (error) throw new Error(`Nie udalo sie otworzyc katalogu ${dir}: ${error}`)
+    return { ok: true, path: dir }
   })
+
+  /* ---------- Audiobooki ---------- */
+  handle('audiobook:list', (_e, search?: string) => listBooks(search ?? ''))
+  handle('audiobook:tracks', (_e, bookId: number) => listTracks(bookId))
+  handle('audiobook:add-parent', (_e, dir: string) => audiobookAddFromParent(dir))
+  handle('audiobook:add-folder', (_e, dir: string) => audiobookAddFolder(dir))
+  handle('audiobook:add-files', (_e, paths: string[]) => audiobookAddFiles(paths))
+  handle('audiobook:remove', (_e, id: number) => removeBook(id))
+  handle('audiobook:update', (_e, id: number, patch) => updateBook(id, patch))
+  handle('audiobook:play', (_e, id: number) => playBook(id))
+  handle('audiobook:open-track', (_e, path: string) => openTrack(path))
+  handle('audiobook:reveal', (_e, id: number) => revealBook(id))
 }

@@ -122,6 +122,29 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
 );
 CREATE INDEX IF NOT EXISTS idx_chunk_doc ON kb_chunks(docId);
 
+CREATE TABLE IF NOT EXISTS audiobooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  source TEXT NOT NULL,
+  path TEXT NOT NULL UNIQUE,
+  author TEXT DEFAULT '',
+  tracks INTEGER DEFAULT 0,
+  bytes INTEGER DEFAULT 0,
+  category TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  addedAt TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS audiobook_tracks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bookId INTEGER NOT NULL,
+  ord INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL,
+  bytes INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_track_book ON audiobook_tracks(bookId);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

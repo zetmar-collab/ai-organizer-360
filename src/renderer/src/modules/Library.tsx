@@ -1,25 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { LibraryFile, LibraryKind } from '../../../shared/types'
-import { api, errMsg, fmtBytes, newRequestId, useDebounced, useList } from '../lib/api'
+import { api, errMsg, fmtBytes, useDebounced, useList } from '../lib/api'
 import { Icon, type IconName } from '../lib/icons'
-import { Confirm, Empty, ErrorBox, Progress, Skeleton, toast } from '../lib/ui'
+import { Confirm, Empty, ErrorBox, Skeleton, toast } from '../lib/ui'
 import MusicFolders from './MusicFolders'
 
 interface Config {
   title: string
   hint: string
   icon: IconName
-  indexable: boolean
 }
 
-const INDEXABLE_EXT = ['pdf', 'docx', 'txt', 'md', 'csv']
-const INDEX_LIMIT = 50
-
 const CONFIG: Record<LibraryKind, Config> = {
-  document: { title: 'Dokumenty', hint: 'PDF, DOCX, TXT, MD, CSV, XLSX, PPTX', icon: 'library', indexable: true },
-  music: { title: 'Muzyka', hint: 'MP3, FLAC, WAV, M4A, OGG', icon: 'music', indexable: false },
-  ebook: { title: 'E-booki', hint: 'EPUB, MOBI, AZW3, PDF, FB2', icon: 'ebook', indexable: true },
-  photo: { title: 'Zdjecia', hint: 'JPG, PNG, WEBP, TIFF, RAW', icon: 'photo', indexable: false }
+  document: { title: 'Dokumenty', hint: 'PDF, DOCX, TXT, MD, CSV, XLSX, PPTX', icon: 'library' },
+  music: { title: 'Muzyka', hint: 'MP3, FLAC, WAV, M4A, OGG', icon: 'music' },
+  ebook: { title: 'E-booki', hint: 'EPUB, MOBI, AZW3, PDF, FB2', icon: 'ebook' },
+  photo: { title: 'Zdjecia', hint: 'JPG, PNG, WEBP, TIFF, RAW', icon: 'photo' }
 }
 
 export default function Library({
@@ -36,8 +32,6 @@ export default function Library({
   const [view, setView] = useState<'list' | 'folders'>(kind === 'music' ? 'folders' : 'list')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState<{ current: number; total: number; file: string } | null>(null)
-  const reqRef = useRef('')
 
   const debouncedSearch = useDebounced(search)
 
@@ -56,19 +50,9 @@ export default function Library({
     [kind, debouncedSearch, category]
   )
 
-  useEffect(
-    () =>
-      api.kb.onProgress((e) => {
-        if (e.requestId && e.requestId !== reqRef.current) return
-        setProgress(e.current >= e.total ? null : { current: e.current, total: e.total, file: e.file })
-      }),
-    []
-  )
-
   const filtered = Boolean(debouncedSearch.trim() || category)
   const categories = Array.from(new Set(items.map((f) => f.category).filter(Boolean))).sort()
   const totalBytes = items.reduce((s, f) => s + (f.size || 0), 0)
-  const indexable = items.filter((f) => INDEXABLE_EXT.includes(f.ext))
 
   const scan = async (): Promise<void> => {
     const folder = await api.dialog.folder()
@@ -100,33 +84,6 @@ export default function Library({
     }
   }
 
-  /** Indeksuje dokladnie to, co widac na liscie - zakres jest wypisany na przycisku. */
-  const indexVisible = async (): Promise<void> => {
-    const paths = indexable.slice(0, INDEX_LIMIT).map((f) => f.path)
-    if (!paths.length) {
-      setError('Na liscie nie ma plikow w formacie mozliwym do zaindeksowania (' + INDEXABLE_EXT.join(', ') + ').')
-      return
-    }
-    setBusy(true)
-    setError('')
-    const requestId = newRequestId()
-    reqRef.current = requestId
-    setProgress({ current: 0, total: paths.length, file: '' })
-    try {
-      const res = await api.kb.indexFiles({ paths, requestId })
-      const ok = res.filter((r) => r.ok).length
-      toast('Zaindeksowano ' + ok + ' z ' + res.length + ' plikow do bazy wiedzy.')
-      const failed = res.filter((r) => !r.ok)
-      if (failed.length) setError(failed.map((f) => f.path + ': ' + f.message).join('\n'))
-    } catch (e) {
-      setError(errMsg(e))
-    } finally {
-      setProgress(null)
-      setBusy(false)
-      reqRef.current = ''
-    }
-  }
-
   return (
     <>
       <ErrorBox error={error || listError} />
@@ -137,18 +94,8 @@ export default function Library({
             <Icon name="folder" /> Skanuj folder
           </button>
           <button className="btn" onClick={categorize} disabled={busy || !items.length}>
-            {busy && !progress ? <span className="spinner" /> : <Icon name="sparkle" />} Kategoryzuj AI
+            {busy ? <span className="spinner" /> : <Icon name="sparkle" />} Kategoryzuj AI
           </button>
-          {cfg.indexable && (
-            <button
-              className="btn"
-              onClick={indexVisible}
-              disabled={busy || !indexable.length}
-              title={'Do bazy wiedzy trafia pliki widoczne na liscie, maksymalnie ' + INDEX_LIMIT}
-            >
-              <Icon name="knowledge" /> Indeksuj {Math.min(indexable.length, INDEX_LIMIT)} plikow
-            </button>
-          )}
           {kind === 'music' && (
             <span className="view-switch">
               <button
@@ -168,14 +115,6 @@ export default function Library({
             <span className="mono">{items.length}</span> plikow, <span className="mono">{fmtBytes(totalBytes)}</span>
           </span>
         </div>
-
-        {progress && (
-          <Progress
-            value={progress.current}
-            max={progress.total}
-            label={progress.file ? 'Indeksowanie: ' + progress.file : 'Przygotowanie...'}
-          />
-        )}
 
         <div className="row stack-md">
           <input
@@ -265,7 +204,9 @@ export default function Library({
             </table>
           </div>
           {items.length > 500 && (
-            <p className="muted pad">Pokazano pierwsze 500 z {items.length} pozycji — zaweź filtr, zeby zobaczyc reszte.</p>
+            <p className="muted pad">
+              Pokazano pierwsze 500 z {items.length} pozycji — zaweź filtr, zeby zobaczyc reszte.
+            </p>
           )}
         </div>
       )}
